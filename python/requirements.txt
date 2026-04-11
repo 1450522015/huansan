@@ -1,0 +1,6 @@
+fastapi==0.115.2
+uvicorn==0.31.1
+deuces==0.2.1
+fastapi==0.115.2
+uvicorn==0.31.1
+deuces==0.2.1

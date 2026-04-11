@@ -1,0 +1,8 @@
+{
+  "appId": "liyufei.huansan",
+  "appName": "模拟pk",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http"
+  }
+}
