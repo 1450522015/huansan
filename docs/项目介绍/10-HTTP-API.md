@@ -36,8 +36,8 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/config` | 返回 `{ "配置": <规范化后的对象> }` |
-| POST | `/api/config` | body `{ "配置": <对象> }`；保存前服务端再次 `normalizeConfigDeep` |
+| GET | `/api/config` | 返回 `{ "配置": <规范化后的对象>, "配置已认证": <boolean> }`（老用户缺字段时视为 `false`） |
+| POST | `/api/config` | body `{ "配置": <对象> }`；服务端 `validateConfigForSave`（含 `normalizeConfigDeep`、副将槽与上阵规则等），**不通过则 400** 且不写入；通过则保存并置 `配置已认证: true`，响应 `{ "成功": true, "配置已认证": true }` |
 
 ---
 
@@ -45,7 +45,7 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/attrs` | 返回 `{ "属性": { "主将": {...}, "副将1": {...}, ... } }`；含 `风格`、`角色分类` 及各战斗字段 |
+| GET | `/api/attrs` | 返回 `{ "属性": { "主将": {...}, "副将1": {...}, ... } }`；与 `common/attrCalculator.js` 的 `computeAttrsFromConfig` 一致；手游配置页已 **本地即时计算**，本接口仍可供调试或其它客户端 |
 
 ---
 
@@ -55,8 +55,8 @@
 
 | 方法 | 路径 | Query / Body | 响应 |
 |------|------|--------------|------|
-| GET | `/api/admin/users` | `page`（默认 1）、`pageSize`（默认 10，最大 100） | `{ list, total, page, pageSize }`；`list` 项含 `id`, `用户名`, `创建时间`, `最近登录时间` |
-| PATCH | `/api/admin/users/:id/password` | `{ "新密码": "…" }` | `{ "成功": true }`；失败 `404/400/500` + `{ "错误" }` |
+| GET | `/api/admin/users` | `page`（默认 1）、`pageSize`（默认 10，最大 100）；可选 `keyword`（用户名子串模糊、不区分大小写）；可选 `login`：`all`（默认）\|`never`（从未登录）\|`today`\|`week`\|`month`\|`old`（与列表「登录状态」标签口径一致） | `{ list, total, page, pageSize }`；`list` 项含 `id`, `用户名`, `创建时间`, `最近登录时间` |
+| PATCH | `/api/admin/users/:id/password` | `{ "新密码": "…" }`；`:id` 为 SQLite 用户 **整数主键**（与列表 `id` 一致） | `{ "成功": true }`；失败 `404/400/500` + `{ "错误" }` |
 
 **改密副作用**：会使该用户 **属性计算缓存** 失效（`invalidateUser`）。**不会**自动吊销已签发 JWT，旧 token 在过期前仍可能调用需登录接口。
 

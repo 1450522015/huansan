@@ -9,12 +9,14 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { clearSession } from '@/shared/auth/storage.js'
+import { clearTokenOnly } from '@/shared/auth/storage.js'
+import { resetLocalConfigStore } from '@/shared/config/usePlayerConfig.js'
 
 const router = useRouter()
 
 function logout() {
-  clearSession()
+  clearTokenOnly()
+  resetLocalConfigStore()
   router.replace({ name: 'login' })
 }
 </script>

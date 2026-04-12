@@ -115,7 +115,7 @@ textarea {
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: var(--surface);
   border-top: 1px solid var(--border);
   padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
@@ -126,8 +126,8 @@ textarea {
   text-align: center;
   text-decoration: none;
   color: var(--muted);
-  font-size: 13px;
-  padding: 8px 4px;
+  font-size: 11px;
+  padding: 8px 2px;
 }
 
 .tabs a.router-link-active {

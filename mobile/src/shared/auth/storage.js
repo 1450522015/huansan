@@ -16,6 +16,11 @@ export function clearSession() {
   localStorage.removeItem(K.密码)
 }
 
+/** 仅清除 token，保留明文用户名与密码（用于退出后回显与自动登录） */
+export function clearTokenOnly() {
+  localStorage.removeItem(K.token)
+}
+
 export function getToken() {
   return localStorage.getItem(K.token)
 }

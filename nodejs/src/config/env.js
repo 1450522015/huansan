@@ -3,13 +3,21 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
+const projectRoot = path.resolve(__dirname, '../../..')
+dotenv.config({ path: path.resolve(projectRoot, '.env') })
 
 const port = Number(process.env.NODEJS_PORT || process.env.PORT || 3000)
 
+const rawSqlite = process.env.SQLITE_PATH || ''
+const sqlitePath = rawSqlite.trim()
+  ? path.isAbsolute(rawSqlite)
+    ? rawSqlite
+    : path.resolve(projectRoot, rawSqlite)
+  : path.join(projectRoot, 'data', 'huansan.sqlite')
+
 export const env = {
   port,
-  mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/huansan',
+  sqlitePath,
   jwtSecret: process.env.JWT_SECRET || 'dev-only-change-me',
   nodeEnv: process.env.NODE_ENV || 'development',
 }

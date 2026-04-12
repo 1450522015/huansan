@@ -4,8 +4,12 @@ import { http } from '@/shared/api/http.js'
 
 import LoginPage from '@/pages/LoginPage.vue'
 import ShellLayout from '@/layouts/ShellLayout.vue'
-import ConfigPage from '@/pages/ConfigPage.vue'
-import AttrsPage from '@/pages/AttrsPage.vue'
+import HomePage from '@/pages/HomePage.vue'
+import ConfigMainPage from '@/pages/ConfigMainPage.vue'
+import ConfigDeputyPage from '@/pages/ConfigDeputyPage.vue'
+import HallPage from '@/pages/HallPage.vue'
+import BattlePage from '@/pages/BattlePage.vue'
+import ChannelPage from '@/pages/ChannelPage.vue'
 import MorePage from '@/pages/MorePage.vue'
 
 function isPublicRoute(to) {
@@ -26,8 +30,27 @@ const router = createRouter({
       component: ShellLayout,
       meta: { requiresAuth: true },
       children: [
-        { path: '', name: 'config', component: ConfigPage, meta: { requiresAuth: true } },
-        { path: 'attrs', name: 'attrs', component: AttrsPage, meta: { requiresAuth: true } },
+        { path: '', name: 'home', component: HomePage, meta: { requiresAuth: true } },
+        { path: 'hall', name: 'hall', component: HallPage, meta: { requiresAuth: true } },
+        { path: 'battle', name: 'battle', component: BattlePage, meta: { requiresAuth: true } },
+        { path: 'channel', name: 'channel', component: ChannelPage, meta: { requiresAuth: true } },
+        { path: 'config/main', name: 'config-main', component: ConfigMainPage, meta: { requiresAuth: true } },
+        {
+          path: 'config/deputy',
+          name: 'config-deputy',
+          component: ConfigDeputyPage,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'config',
+          redirect: (to) => {
+            const s = to.query?.slot
+            if (s != null && String(s).trim() !== '') {
+              return { name: 'config-deputy', query: { slot: String(s) } }
+            }
+            return { name: 'config-main' }
+          },
+        },
         { path: 'more', name: 'more', component: MorePage, meta: { requiresAuth: true } },
       ],
     },
@@ -46,7 +69,20 @@ const router = createRouter({
   ],
 })
 
-let autoLoginAttempted = false
+async function tryAutoLoginFromStorage() {
+  const { 用户名, 密码 } = getStoredCredentials()
+  if (!用户名 || !密码) return false
+  try {
+    const { data } = await http.post('/api/login', { 用户名, 密码 })
+    if (data?.token) {
+      localStorage.setItem('huansan_token', data.token)
+      return true
+    }
+  } catch {
+    /* ignore */
+  }
+  return false
+}
 
 router.beforeEach(async (to) => {
   if (isPublicRoute(to)) {
@@ -57,25 +93,14 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  if (!autoLoginAttempted) {
-    autoLoginAttempted = true
-    const { 用户名, 密码 } = getStoredCredentials()
-    if (用户名 && 密码) {
-      try {
-        const { data } = await http.post('/api/login', { 用户名, 密码 })
-        if (data?.token) {
-          localStorage.setItem('huansan_token', data.token)
-          return true
-        }
-      } catch {
-        /* 自动登录失败则去登录页 */
-      }
-    }
+  const ok = await tryAutoLoginFromStorage()
+  if (ok) {
+    return true
   }
 
   const q = {}
   if (to.name && !isPublicRoute(to) && to.path !== '/login') {
-    q.redirect = to.path || '/'
+    q.redirect = to.fullPath || to.path || '/'
   }
   return { name: 'login', replace: true, query: q }
 })

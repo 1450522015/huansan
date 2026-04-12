@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { User } from '../models/User.js'
+import * as userRepo from '../repositories/userRepo.js'
 import { authRequired } from '../middleware/auth.js'
 import { getDefaultConfig, normalizeConfigDeep } from '../services/defaultConfig.js'
 import { computeAttrsFromConfig } from '../services/attrCalculator.js'
@@ -14,7 +14,7 @@ function stableStringify(obj) {
 
 attrsRouter.get('/', async (req, res) => {
   try {
-    const user = await User.findById(req.userId).lean()
+    const user = userRepo.findUserById(req.userId)
     if (!user) return res.status(404).json({ 错误: '用户不存在' })
     let 配置 = user.配置
     if (!配置 || typeof 配置 !== 'object' || Object.keys(配置).length === 0) {

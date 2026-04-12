@@ -1,10 +1,10 @@
 import express from 'express'
 import cors from 'cors'
 import http from 'http'
-import mongoose from 'mongoose'
 import rateLimit from 'express-rate-limit'
 import { Server } from 'socket.io'
 import { env } from './config/env.js'
+import { openSqlite } from './db/sqlite.js'
 import { authRouter } from './routes/auth.js'
 import { configRouter } from './routes/config.js'
 import { attrsRouter } from './routes/attrs.js'
@@ -46,14 +46,16 @@ io.on('connection', (socket) => {
   socket.on('ping', () => socket.emit('pong', { 时间: Date.now() }))
 })
 
-async function main() {
-  await mongoose.connect(env.mongoUri)
+function main() {
+  openSqlite()
   server.listen(env.port, () => {
     console.log(`[huansan] HTTP+WS 监听 ${env.port}`)
   })
 }
 
-main().catch((e) => {
+try {
+  main()
+} catch (e) {
   console.error(e)
   process.exit(1)
-})
+}

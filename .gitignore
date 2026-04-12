@@ -43,6 +43,11 @@ Desktop.ini
 logs/
 *.log
 
+# ---- SQLite（库文件可本地生成；与工具共用 WAL 时勿提交大数据） ----
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+
 # ---- Runtime temp files ----
 *.pid
 *.seed

@@ -22,7 +22,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { http } from '@/shared/api/http.js'
-import { saveSession, getToken } from '@/shared/auth/storage.js'
+import { saveSession, getToken, getStoredCredentials } from '@/shared/auth/storage.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -33,11 +33,18 @@ const loading = ref(false)
 
 function afterAuthRedirect() {
   const r = route.query.redirect
-  const path = typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/'
+  let path = '/'
+  if (typeof r === 'string' && r.length > 0) {
+    if (r.startsWith('/') && !r.startsWith('//')) path = r
+    else if (r.startsWith('#/')) path = r.slice(1)
+  }
   return router.replace(path)
 }
 
 onMounted(() => {
+  const { 用户名: u, 密码: p } = getStoredCredentials()
+  if (u) 用户名.value = u
+  if (p) 密码.value = p
   if (getToken()) afterAuthRedirect()
 })
 

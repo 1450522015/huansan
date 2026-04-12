@@ -1,1 +1,1 @@
-export { getDefaultConfig, normalizeConfigDeep } from '../../../data/gameCatalog.js'
+export { getDefaultConfig, normalizeConfigDeep } from '../../../common/gameCatalog.js'
