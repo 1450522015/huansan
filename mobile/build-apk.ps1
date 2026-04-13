@@ -28,24 +28,24 @@ Write-Host "Checking for APK at: $sourceApk"
 
 if (Test-Path $sourceApk) {
     Write-Host "APK found successfully"
-    
+
     # 创建apk目录
     $apkDir = "apk"
     if (-not (Test-Path $apkDir)) {
         New-Item -ItemType Directory -Path $apkDir -Force
         Write-Host "Created directory: $apkDir"
     }
-    
+
     # 清理旧的APK文件（只保留最新的）
     Write-Host "Cleaning old APK files..."
     Get-ChildItem $apkDir -Filter "*.apk" | ForEach-Object {
         Remove-Item $_.FullName -Force
     }
-    
+
     # 生成时间戳文件名
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $targetApk = "$apkDir\dezhou-$timestamp.apk"
-    
+    $targetApk = "$apkDir\huansan-$timestamp.apk"
+
     # 复制文件
     Write-Host "Copying to: $targetApk"
     Copy-Item $sourceApk $targetApk -Force

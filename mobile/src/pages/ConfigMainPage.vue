@@ -239,7 +239,7 @@
       </div>
     </div>
 
-    <BattleAttrsPanel :data="主将战斗属性" />
+    <BattleAttrsPanel :data="主将战斗属性" :debug="主将战斗属性调试" />
 
     <div v-if="openImport" class="modal" @click.self="openImport = false">
       <div class="modal-body card">
@@ -256,7 +256,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import BattleAttrsPanel from '@/components/BattleAttrsPanel.vue'
 import {
   装备部位列表,
@@ -288,16 +288,27 @@ import {
   技能档位范围,
   clamp熟练度到档位,
   computeAttrsFromConfig,
+  computeUnitBattleDebug,
 } from '@/shared/config/defaults.js'
 import { 配置, applyConfigImport } from '@/shared/config/usePlayerConfig.js'
 
+const route = useRoute()
 const router = useRouter()
+
+const battleDebugOn = computed(
+  () => import.meta.env.DEV || route.query.battleDebug === '1' || route.query.battleDebug === 'true',
+)
 const 提示 = ref('')
 const 提示类型 = ref('ok')
 const openImport = ref(false)
 const importText = ref('')
 
 const 主将战斗属性 = computed(() => computeAttrsFromConfig(配置)?.主将 ?? null)
+
+const 主将战斗属性调试 = computed(() => {
+  if (!battleDebugOn.value) return null
+  return computeUnitBattleDebug(配置?.主将, { 主将: true })
+})
 
 const 坐骑加成展示 = computed(() => {
   const m = 配置.主将?.坐骑

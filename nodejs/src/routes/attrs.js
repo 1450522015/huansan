@@ -2,7 +2,7 @@ import { Router } from 'express'
 import * as userRepo from '../repositories/userRepo.js'
 import { authRequired } from '../middleware/auth.js'
 import { getDefaultConfig, normalizeConfigDeep } from '../services/defaultConfig.js'
-import { computeAttrsFromConfig } from '../services/attrCalculator.js'
+import { computeAttrsFromConfig, computeAttrsFromConfigDebug } from '../services/attrCalculator.js'
 import { getCached, setCached } from '../services/configCache.js'
 
 export const attrsRouter = Router()
@@ -23,12 +23,22 @@ attrsRouter.get('/', async (req, res) => {
       配置 = normalizeConfigDeep(配置)
     }
     const snap = stableStringify(配置)
+    const wantDebug = req.query.debug === '1' || req.query.debug === 'true'
     const cached = getCached(req.userId)
     if (cached && stableStringify(cached.配置) === snap) {
+      if (wantDebug) {
+        return res.json({
+          属性: cached.计算结果,
+          调试: computeAttrsFromConfigDebug(cached.配置),
+        })
+      }
       return res.json({ 属性: cached.计算结果 })
     }
     const 属性 = computeAttrsFromConfig(配置)
     setCached(req.userId, JSON.parse(snap), 属性)
+    if (wantDebug) {
+      return res.json({ 属性, 调试: computeAttrsFromConfigDebug(配置) })
+    }
     return res.json({ 属性 })
   } catch (e) {
     console.error(e)

@@ -211,7 +211,7 @@
       </div>
     </div>
 
-    <BattleAttrsPanel v-if="槽位合法" :data="副将战斗属性" />
+    <BattleAttrsPanel v-if="槽位合法" :data="副将战斗属性" :debug="副将战斗属性调试" />
 
     <div v-if="openImport" class="modal" @click.self="openImport = false">
       <div class="modal-body card">
@@ -254,11 +254,16 @@ import {
   副将槽位总数,
   副将上阵顺序同步,
   computeUnitAttrs,
+  computeUnitBattleDebug,
 } from '@/shared/config/defaults.js'
 import { 配置, applyConfigImport } from '@/shared/config/usePlayerConfig.js'
 
 const route = useRoute()
 const router = useRouter()
+
+const battleDebugOn = computed(
+  () => import.meta.env.DEV || route.query.battleDebug === '1' || route.query.battleDebug === 'true',
+)
 const 槽位 = ref(0)
 const 提示 = ref('')
 const 提示类型 = ref('ok')
@@ -288,6 +293,11 @@ const 默契键序 = ['命中率', '暴击率', '反击率', '致命率', '躲�
 const 副将战斗属性 = computed(() => {
   if (!当前.value) return null
   return computeUnitAttrs(当前.value, { 主将: false })
+})
+
+const 副将战斗属性调试 = computed(() => {
+  if (!battleDebugOn.value || !当前.value) return null
+  return computeUnitBattleDebug(当前.value, { 主将: false })
 })
 
 const 默契加成格子 = computed(() => {

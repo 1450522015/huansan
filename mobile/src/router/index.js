@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { getToken, getStoredCredentials } from '@/shared/auth/storage.js'
 import { http } from '@/shared/api/http.js'
+import { versionGateState } from '@/shared/version/versionGate.js'
 
 import LoginPage from '@/pages/LoginPage.vue'
 import ShellLayout from '@/layouts/ShellLayout.vue'
@@ -85,6 +86,10 @@ async function tryAutoLoginFromStorage() {
 }
 
 router.beforeEach(async (to) => {
+  if (versionGateState.locked) {
+    return false
+  }
+
   if (isPublicRoute(to)) {
     return true
   }

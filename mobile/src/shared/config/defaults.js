@@ -1,5 +1,10 @@
 /** 共享游戏表与默认配置（源码见仓库根目录 common/gameCatalog.js） */
-export { computeAttrsFromConfig, computeUnitAttrs } from '@common/attrCalculator.js'
+export {
+  computeAttrsFromConfig,
+  computeAttrsFromConfigDebug,
+  computeUnitAttrs,
+  computeUnitBattleDebug,
+} from '@common/attrCalculator.js'
 
 export {
   getDefaultConfig,
