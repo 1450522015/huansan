@@ -1,69 +1,91 @@
-# 10 · HTTP API 一览
+# 10 · HTTP API
 
 [← 返回索引](./README.md)
 
-**Base URL**：开发期 Admin/Mobile 通过 Vite 代理，一般为同源 `/api`；生产环境由 `__BACKEND_URL__` 指向 Node 根地址。
+---
 
-**通用**：除明文说明外，请求/响应 JSON 字段名 **多为中文**（与产品约定一致）。
+约定：**JSON** 请求体与响应；字段名多为 **中文**（与配置结构一致）。除特别声明外，`Content-Type: application/json`。
 
 ---
 
 ## 10.1 健康检查
 
-| 项目 | 说明 |
-|------|------|
-| `GET /api/health` | 响应示例：`{ "状态": "ok" }` |
+**`GET /api/health`**  
+
+- **响应示例**：`{ "状态": "ok" }`
 
 ---
 
-## 10.2 注册与登录（Mobile）
+## 10.2 认证（无需 Bearer）
 
-| 方法 | 路径 | 鉴权 | 请求 body | 响应要点 |
-|------|------|------|-----------|----------|
-| POST | `/api/register` | 无 | `{ "用户名", "密码" }` | `{ "token", "用户名" }`；成功则创建用户与默认配置 |
-| POST | `/api/login` | 无 | `{ "用户名", "密码" }` | `{ "token", "用户名" }`；并更新 `最近登录时间` |
+### 注册
 
-**错误**：`{ "错误": "…" }`，HTTP 4xx/5xx。
+**`POST /api/register`**
 
-**用户名规则**：1–20；允许中文、字母、数字、下划线。  
-**密码规则**：1–20；不允许字符 `< > ' " &`（与校验代码一致）。
+- **Body**：`{ "用户名": string, "密码": string }`
+- **成功**：`{ "token": string, "用户名": string }`
+- **错误**：`400` 校验失败；`409` 用户名已存在；`500` 注册失败
 
----
+### 登录
 
-## 10.3 用户配置（Mobile，需登录）
+**`POST /api/login`**
 
-**Header**：`Authorization: Bearer <token>`
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/config` | 返回 `{ "配置": <规范化后的对象>, "配置已认证": <boolean> }`（老用户缺字段时视为 `false`） |
-| POST | `/api/config` | body `{ "配置": <对象> }`；服务端 `validateConfigForSave`（含 `normalizeConfigDeep`、副将槽与上阵规则等），**不通过则 400** 且不写入；通过则保存并置 `配置已认证: true`，响应 `{ "成功": true, "配置已认证": true }` |
+- **Body**：`{ "用户名": string, "密码": string }`
+- **成功**：`{ "token": string, "用户名": string }`
+- **错误**：`400` 校验失败；`401` 用户名或密码错误；`500` 登录失败
 
 ---
 
-## 10.4 战斗属性（Mobile，需登录）
+## 10.3 需登录的接口（`Authorization: Bearer <token>`）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/attrs` | 返回 `{ "属性": { "主将": {...}, "副将1": {...}, ... } }`；与 `common/attrCalculator.js` 的 `computeAttrsFromConfig` 一致；手游配置页已 **本地即时计算**，本接口仍可供调试或其它客户端 |
+中间件校验 JWT，失败返回 **401**。
+
+### 读取配置
+
+**`GET /api/config`**
+
+- **成功**：`{ "配置": object, "配置已认证": boolean }`（空配置会补默认并规范化）
+- **错误**：`404` 用户不存在；`500` 读取失败
+
+### 保存配置
+
+**`POST /api/config`**
+
+- **Body**：`{ "配置": object }`
+- **成功**：`{ "成功": true, "配置已认证": true }`
+- **错误**：`400` 缺少配置或 `validateConfigForSave` 失败（`{ "错误": string }`）；`404` 用户不存在；`500` 保存失败
+
+### 战斗属性
+
+**`GET /api/attrs`**  
+**`GET /api/attrs?debug=1`** 或 **`?debug=true`**
+
+- **成功**：`{ "属性": object }`；调试时额外 `调试` 分层信息
+- **错误**：`404` / `500` 同配置接口语义
 
 ---
 
-## 10.5 管理端（Admin，当前无鉴权）
+## 10.4 管理端（当前无 Bearer 要求）
 
-> **安全提示**：接口在公网暴露时存在严重风险；仅建议内网或后续加 `ADMIN_API_KEY` / IP 白名单。
+**`GET /api/admin/users`**
 
-| 方法 | 路径 | Query / Body | 响应 |
-|------|------|--------------|------|
-| GET | `/api/admin/users` | `page`（默认 1）、`pageSize`（默认 10，最大 100）；可选 `keyword`（用户名子串模糊、不区分大小写）；可选 `login`：`all`（默认）\|`never`（从未登录）\|`today`\|`week`\|`month`\|`old`（与列表「登录状态」标签口径一致） | `{ list, total, page, pageSize }`；`list` 项含 `id`, `用户名`, `创建时间`, `最近登录时间` |
-| PATCH | `/api/admin/users/:id/password` | `{ "新密码": "…" }`；`:id` 为 SQLite 用户 **整数主键**（与列表 `id` 一致） | `{ "成功": true }`；失败 `404/400/500` + `{ "错误" }` |
+- **Query**：`page`（默认 1）、`pageSize`（默认 10，最大 100）、`keyword`（可选）、`login`（可选，`all` 等）
+- **成功**：`{ "list": array, "total": number, "page": number, "pageSize": number }`
 
-**改密副作用**：会使该用户 **属性计算缓存** 失效（`invalidateUser`）。**不会**自动吊销已签发 JWT，旧 token 在过期前仍可能调用需登录接口。
+**`PATCH /api/admin/users/:id/password`**
+
+- **Body**：`{ "新密码": string }`（校验规则同注册密码：长度与非法字符限制见 `validatePassword`）
+- **成功**：`{ "成功": true }`
+- **错误**：`400` 无效 id 或密码校验失败；`404` 用户不存在；`500` 修改失败
+
+---
+
+## 10.5 全局错误
+
+未捕获异常：**`500`**，`{ "错误": "服务器错误" }`（见 `index.js` 错误处理中间件）。
 
 ---
 
 ## 10.6 相关文档
 
-- [04-配置数据模型.md](./04-配置数据模型.md)  
-- [12-管理后台.md](./12-管理后台.md)  
-- [09-后端服务.md](./09-后端服务.md)
+- [09-backend.md](./09-backend.md)、[11-mobile.md](./11-mobile.md)、[12-admin.md](./12-admin.md)

@@ -2,7 +2,15 @@
 
 > **用途**：在为本仓库编写或修改代码前，请先通读本文件，再按需深入链接中的文档或源码。  
 > **建议**：在 Cursor 中把本文件加入 **Rules**，或在每次复杂任务开头用 `@.ai/README.md` 引用。  
-> **写完代码后**：若改动影响了玩法表、配置结构、API、前后端行为或目录职责，**视情况更新 `docs/项目介绍/` 下对应 Markdown**，避免「代码已变、文档仍旧」。（纯样式、变量重命名等可不改。）
+> **文档治理（强约束）**：`docs/私有文档/` 由开发人员维护，AI **只能读取不可修改**；`docs/项目介绍/` 由 AI 维护，用于沉淀当前项目结构与规格，后续任务可**直接视为最新基线**。
+> **写完代码后**：若改动影响玩法表、配置结构、API、前后端行为或目录职责，应同步更新 `docs/项目介绍/` 下对应 Markdown，避免「代码已变、文档仍旧」。（纯样式、变量重命名等可不改。）
+
+### 文档编码（Markdown / 文本）
+
+- **`docs/项目介绍/`** 下全部 Markdown，以及仓库内其它需纳入版本管理的说明类 `.md`，**统一使用 UTF-8 编码保存**。
+- 该目录内 **01–19** 专题文档文件名为 **`NN-english-slug.md`（ASCII）**；正文语言不变。
+- **推荐 UTF-8 无 BOM**；若使用带 BOM 的 UTF-8，须与团队工具链一致，避免混用导致重复 BOM 或解析异常。
+- 若正文出现「涓诲皢」「鎴樻枟」等 **形似乱码的汉字**，通常表示文件曾被按错误编码打开或保存；应 **以 UTF-8 重新保存**，并按 [`common/`](../common/) 与现有正常章节 **重写正文**，勿在错误编码上叠加编辑。
 
 ---
 
@@ -18,7 +26,7 @@
 | 内容 | 人类可读（优先） | 机器执行（与实现对齐） |
 |------|------------------|------------------------|
 | 装备/坐骑/宝石/技能表、天赋分段、属性点与风格 | **`docs/项目介绍/`**（从 [`docs/项目介绍/README.md`](../docs/项目介绍/README.md) 进入） | **`common/gameCatalog.js`** |
-| 战斗属性汇总（主将+副将1～3） | [08-战斗属性与计算说明.md](../docs/项目介绍/08-战斗属性与计算说明.md) | **`common/attrCalculator.js`** |
+| 战斗属性汇总（主将+副将1～3） | [08-battle-attrs.md](../docs/项目介绍/08-battle-attrs.md) | **`common/attrCalculator.js`** |
 | 原始需求碎片 | `docs/我对这个项目的描述.md`、`docs/当前任务.md` | 以 `项目介绍` 已归纳章节为准 |
 
 **规则**：改玩法表、数值段、配置结构时，**优先改 `docs/项目介绍` 下对应 md，再改 `common/gameCatalog.js`（及必要的 `common/attrCalculator.js`）**。不要在业务代码里写大段可维护的「文档式注释」代替 md。
@@ -33,7 +41,8 @@
 | `admin/` | Vue3 + Vite，桌面后台 | **全局无登录**；仅调 `/api/admin/*` |
 | `nodejs/` | Express + better-sqlite3 + Socket.IO | 用户鉴权 JWT；配置读写；**不要**把大段静态表写进路由——表与计算在 **`common/`** |
 | `common/` | `gameCatalog.js`（表+规范化+纯函数）、`attrCalculator.js`（战斗属性） | 勿引入 `express`/数据库驱动；保持 ESM、可被 Vite 与 Node 同时 import |
-| `docs/项目介绍/` | 项目介绍与规格 | Markdown 互相链接；**用户未要求时不要新建无关 md** |
+| `docs/私有文档/` | 开发者私有文档 | **AI 只读不可改** |
+| `docs/项目介绍/` | AI 维护的项目介绍与规格 | Markdown 互相链接；作为 AI 开发时的**最新事实基线**；用户未要求时不要新建无关 md |
 
 ---
 
@@ -52,7 +61,7 @@
 
 - **Mobile**：`/api/register`、`/api/login`；`/api/config` 需 **`Authorization: Bearer <token>`**；可选 **`GET /api/attrs`**（与本地 `computeAttrsFromConfig` 同源，供调试或其它端）；401 时前端会清 token 并回登录页。
 - **Admin**：`/api/admin/users`（分页）、`/api/admin/users/:id/password`（改密）——**当前无鉴权**，勿当公开环境安全方案。
-- 详细列表见 [`docs/项目介绍/10-HTTP-API.md`](../docs/项目介绍/10-HTTP-API.md)。
+- 详细列表见 [`docs/项目介绍/10-http-api.md`](../docs/项目介绍/10-http-api.md)。
 
 ---
 

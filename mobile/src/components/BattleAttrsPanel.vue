@@ -4,39 +4,21 @@
     <div v-if="emptyHint" class="muted">{{ emptyHint }}</div>
     <div v-else-if="!data || typeof data !== 'object'" class="muted">无数据</div>
     <div v-else class="grid">
-      <div v-for="(v, k) in data" :key="String(k)" class="kv">
+      <div v-for="([k, v]) in 展示格" :key="String(k)" class="kv">
         <span class="k">{{ k }}</span>
         <span class="v">{{ v }}</span>
       </div>
     </div>
 
     <div v-if="debug && typeof debug === 'object'" class="debug-wrap">
-      <div class="debug-toolbar">
-        <span class="debug-tag">调试分层（四步）</span>
-        <button type="button" class="btn-copy" @click="copyDebugJson">复制 JSON</button>
-        <span v-if="copyHint" class="copy-hint">{{ copyHint }}</span>
-      </div>
-      <p class="debug-tip muted">
-        <strong>1</strong> 有效四维（分配修正 + 宝石/装备四维）·
-        <strong>2</strong> 仅由有效四维算出的五维（气血/精力/攻击/速度/防御）·
-        <strong>3</strong> 加算完成后的全量战斗字段 ·
-        <strong>4</strong> 乘算完成（强攻/强血）后的全量，可含小数；再经四舍五入即与上方「战斗属性」一致。
-        开发模式或 <code>battleDebug=1</code> 显示。
-      </p>
-      <details v-for="(layer, i) in debug.分层" :key="'L' + i" class="debug-layer">
-        <summary>{{ layer.名称 }}</summary>
-        <pre class="debug-pre">{{ formatDebugLayer(layer, i) }}</pre>
-      </details>
-      <details v-if="debug.中间" class="debug-layer">
-        <summary>中间数据（等级系数、宝石四维、天赋乘区等）</summary>
-        <pre class="debug-pre">{{ JSON.stringify(debug.中间, null, 2) }}</pre>
-      </details>
+      <button type="button" class="btn-copy" @click="copyDebugInfo">复制调试信息</button>
+      <span v-if="copyHint" class="copy-hint">{{ copyHint }}</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   data: { type: Object, default: null },
@@ -46,7 +28,6 @@ const props = defineProps({
 
 const copyHint = ref('')
 
-/** 与 common/attrCalculator 输出字段顺序对齐，便于第 3、4 层「全量」展示 */
 const DEBUG_FULL_KEYS = [
   '气血',
   '精力',
@@ -78,62 +59,125 @@ const DEBUG_FULL_KEYS = [
   '法穿率',
 ]
 
+const 面板排除键 = new Set(['忽视率', '天赋技能效果'])
+
+const 展示格 = computed(() => {
+  const d = props.data
+  if (!d || typeof d !== 'object') return []
+  const order = ['风格', '角色分类', ...DEBUG_FULL_KEYS]
+  const seen = new Set()
+  const rows = []
+  for (const k of order) {
+    if (!Object.prototype.hasOwnProperty.call(d, k) || 面板排除键.has(k)) continue
+    rows.push([k, d[k]])
+    seen.add(k)
+  }
+  for (const k of Object.keys(d).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))) {
+    if (seen.has(k) || 面板排除键.has(k)) continue
+    rows.push([k, d[k]])
+  }
+  return rows
+})
+
 const 四维键序 = ['体质', '智力', '力量', '敏捷']
 const 五维键序 = ['气血', '精力', '攻击', '速度', '防御']
 
-function formatDebugLayer(layer, index) {
-  const obj = layer?.属性
+function fmtNum(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return String(v)
+  if (Number.isInteger(n)) return String(n)
+  const s = n.toFixed(6)
+  return s.replace(/\.?0+$/, '') || '0'
+}
+
+function formatLayerObj(obj, keys) {
   if (!obj || typeof obj !== 'object') return '（无数据）'
-  const name = String(layer.名称 || '')
-
-  if (index === 0 || name.includes('有效四维')) {
-    return 四维键序.map((k) => `${k}: ${Number(obj[k]) || 0}`).join('\n')
-  }
-  if (index === 1 || name.includes('仅五维')) {
-    return 五维键序.map((k) => `${k}: ${fmtValue(k, obj[k], false)}`).join('\n')
-  }
-
-  const isLayer4 = index === 3 || name.includes('乘算后')
-  const lines = []
   const seen = new Set()
-  for (const k of DEBUG_FULL_KEYS) {
-    const raw = Object.prototype.hasOwnProperty.call(obj, k) ? obj[k] : 0
-    lines.push(`${k}: ${fmtValue(k, raw, isLayer4)}`)
+  const lines = []
+  for (const k of keys) {
+    if (!Object.prototype.hasOwnProperty.call(obj, k)) continue
+    lines.push(`  ${k}: ${fmtNum(obj[k])}`)
     seen.add(k)
   }
   for (const k of Object.keys(obj).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))) {
     if (seen.has(k)) continue
-    lines.push(`${k}: ${fmtValue(k, obj[k], isLayer4)}`)
+    lines.push(`  ${k}: ${fmtNum(obj[k])}`)
   }
   return lines.join('\n')
 }
 
-function getNum(v) {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : undefined
-}
+function buildDebugText() {
+  const d = props.debug
+  if (!d || typeof d !== 'object') return ''
+  const parts = []
 
-/** 第 4 层攻击/气血保留小数，其余数值按有限小数格式化 */
-function fmtValue(k, v, allowFloat) {
-  const n = getNum(v)
-  if (n === undefined) return String(v)
-  if (allowFloat && (k === '攻击' || k === '气血')) {
-    if (Number.isInteger(n)) return String(n)
-    const s = n.toFixed(6)
-    return s.replace(/\.?0+$/, '') || '0'
+  parts.push('=== 战斗属性调试信息 ===')
+  parts.push('')
+
+  if (d.结果 && typeof d.结果 === 'object') {
+    parts.push('【最终结果】')
+    parts.push(formatLayerObj(d.结果, ['风格', '角色分类', ...DEBUG_FULL_KEYS, '忽视率']))
+    if (d.结果.天赋技能效果 && typeof d.结果.天赋技能效果 === 'object') {
+      parts.push('  天赋技能效果:')
+      for (const [k, v] of Object.entries(d.结果.天赋技能效果)) {
+        parts.push(`    ${k}: ${fmtNum(v)}`)
+      }
+    }
+    parts.push('')
   }
-  if (allowFloat && !Number.isInteger(n)) {
-    const s = n.toFixed(6)
-    return s.replace(/\.?0+$/, '') || '0'
+
+  if (Array.isArray(d.分层)) {
+    const layerNames = [
+      '步骤1：有效四维',
+      '步骤2：仅五维',
+      '步骤3：加算后（未取整）',
+      '步骤4：天赋乘算前（已取整）',
+      '步骤5：强攻强血乘算后',
+    ]
+    for (let i = 0; i < d.分层.length; i++) {
+      const layer = d.分层[i]
+      if (!layer) continue
+      const name = layer.名称 || layerNames[i] || `步骤${i + 1}`
+      parts.push(`【${name}】`)
+      if (i === 0 || name.includes('有效四维')) {
+        parts.push(formatLayerObj(layer.属性, 四维键序))
+      } else if (i === 1 || name.includes('仅五维')) {
+        parts.push(formatLayerObj(layer.属性, 五维键序))
+      } else {
+        parts.push(formatLayerObj(layer.属性, DEBUG_FULL_KEYS))
+      }
+      parts.push('')
+    }
   }
-  return String(Math.round(n))
+
+  if (d.中间 && typeof d.中间 === 'object') {
+    parts.push('【中间数据】')
+    const meta = d.中间
+    for (const [k, v] of Object.entries(meta)) {
+      if (typeof v === 'object' && v !== null) {
+        parts.push(`  ${k}:`)
+        parts.push(`    ${JSON.stringify(v)}`)
+      } else {
+        parts.push(`  ${k}: ${fmtNum(v)}`)
+      }
+    }
+    parts.push('')
+  }
+
+  parts.push('=== 计算流程说明 ===')
+  parts.push('步骤1：有效四维 = 分配修正后的属性点 + 宝石/装备四维加成')
+  parts.push('步骤2：仅五维 = 由有效四维按公式算出（气血/精力/攻击/速度/防御；含前世槽攻血乘在公式内）')
+  parts.push('步骤3：加算后（未取整）= 步骤2 + 装备非四维 + 坐骑 + 帮派 + 天赋加算 + 职业基础与抗性等')
+  parts.push('步骤4：天赋乘算前（已取整）= 步骤3 合并后，主将速度先四舍五入再 × 前世槽速度倍率；再对全部数值型战斗属性四舍五入')
+  parts.push('步骤5：强攻强血乘算后 = 步骤4 的「攻击」「气血」× ∏(1+p/100)；最终输出再四舍五入（连击数等区间文案不变）')
+
+  return parts.join('\n')
 }
 
 let copyTimer = null
-async function copyDebugJson() {
-  const d = props.debug
-  if (!d) return
-  const text = JSON.stringify(d, null, 2)
+async function copyDebugInfo() {
+  const text = buildDebugText()
+  if (!text) return
   try {
     await navigator.clipboard.writeText(text)
     copyHint.value = '已复制'
@@ -185,18 +229,10 @@ async function copyDebugJson() {
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
-}
-.debug-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
-}
-.debug-tag {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
 }
 .btn-copy {
   font-size: 12px;
@@ -212,33 +248,5 @@ async function copyDebugJson() {
 .copy-hint {
   font-size: 12px;
   color: var(--muted);
-}
-.debug-tip {
-  font-size: 12px;
-  margin: 0 0 8px;
-  line-height: 1.45;
-}
-.debug-tip code {
-  font-size: 11px;
-}
-.debug-layer {
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-.debug-layer summary {
-  cursor: pointer;
-  color: var(--muted);
-  padding: 4px 0;
-}
-.debug-pre {
-  margin: 4px 0 0;
-  padding: 8px;
-  font-size: 11px;
-  line-height: 1.4;
-  overflow-x: auto;
-  border-radius: 6px;
-  background: var(--code-bg, rgba(0, 0, 0, 0.04));
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 </style>

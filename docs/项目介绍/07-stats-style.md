@@ -80,5 +80,6 @@ e_{敏} = \max(0,\ 敏捷 - L)
 
 ## 7.7 相关文档
 
-- [04-配置数据模型.md](./04-配置数据模型.md)  
-- [08-战斗属性与计算说明.md](./08-战斗属性与计算说明.md)
+- [04-config-schema.md](./04-config-schema.md)  
+- [08-battle-attrs.md](./08-battle-attrs.md)
+

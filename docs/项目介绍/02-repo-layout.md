@@ -57,7 +57,7 @@ huansan/
 
 - **语言**：JavaScript（ESM），**零构建**即可被 Node 直接 `import`。  
 - **被引用方**：`nodejs` 相对路径 `../../../common/*`；`mobile` 通过 Vite alias `@common`。  
-- **人类可读规格**：见本目录 [05](./05-装备坐骑宝石与技能表.md)、[06](./06-天赋与技能熟练度.md)、[07](./07-属性点与风格.md)、[08](./08-战斗属性与计算说明.md) 及 [03](./03-共享规则与代码对照.md)。
+- **人类可读规格**：见本目录 [05](./05-gear-mount-gems-skills.md)、[06](./06-talents-skill-mastery.md)、[07](./07-stats-style.md)、[08](./08-battle-attrs.md) 及 [03](./03-shared-rules.md)。
 
 ---
 
@@ -74,5 +74,6 @@ admin  ──HTTP(proxy)──►  nodejs
 
 ## 2.4 相关文档
 
-- [03-共享规则与代码对照.md](./03-共享规则与代码对照.md)  
-- [13-环境与部署.md](./13-环境与部署.md)
+- [03-shared-rules.md](./03-shared-rules.md)  
+- [13-env-deploy.md](./13-env-deploy.md)
+

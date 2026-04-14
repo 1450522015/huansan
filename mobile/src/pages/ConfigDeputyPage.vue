@@ -48,6 +48,9 @@
           @blur="on无双等级Blur"
         />
       </div>
+      <div v-if="无双形态预览行.length" class="unshou-preview">
+        <div v-for="(line, idx) in 无双形态预览行" :key="'us' + idx" class="unshou-preview-line">{{ line }}</div>
+      </div>
     </div>
 
     <div v-if="槽位合法" class="card card-tight">
@@ -238,11 +241,13 @@ import {
   副将职业轴选项,
   副将配置性别,
   副将默契战斗加成,
+  主将战斗职业轴,
+  当前角色分类,
   职业轴与前缀成分类,
   分类转职业轴,
   天赋名称列表,
   天赋说明,
-  天赋百分比,
+  天赋面板加成文案,
   空闲点,
   计算风格,
   修正属性分配,
@@ -252,9 +257,13 @@ import {
   技能档位范围,
   clamp熟练度到档位,
   副将槽位总数,
+  empty副将槽,
   副将上阵顺序同步,
   computeUnitAttrs,
+  computeUnitAttrs副将无双形态,
   computeUnitBattleDebug,
+  副将有效成长,
+  副将无双成长增量,
 } from '@/shared/config/defaults.js'
 import { 配置, applyConfigImport } from '@/shared/config/usePlayerConfig.js'
 
@@ -288,8 +297,6 @@ const 当前 = computed(() => {
   return 配置.副将列表[槽位.value]
 })
 
-const 默契键序 = ['命中率', '暴击率', '反击率', '致命率', '躲避率', '反震率']
-
 const 副将战斗属性 = computed(() => {
   if (!当前.value) return null
   return computeUnitAttrs(当前.value, { 主将: false })
@@ -302,11 +309,37 @@ const 副将战斗属性调试 = computed(() => {
 
 const 默契加成格子 = computed(() => {
   if (!当前.value) return []
-  const o = 副将默契战斗加成(当前.value.默契度 ?? 0)
-  return 默契键序.map((k) => ({ k, v: Math.round(Number(o[k]) || 0) }))
+  const 轴 = 主将战斗职业轴(当前角色分类(当前.value))
+  const o = 副将默契战斗加成(当前.value.默契度 ?? 0, 轴)
+  const 序 =
+    轴 === '武'
+      ? ['命中率', '暴击率', '反击率', '致命率', '躲避率', '连击率']
+      : 轴 === '文'
+        ? ['命中率', '暴击率', '反击率', '致命率', '躲避率', '反震率']
+        : ['命中率', '暴击率', '反击率', '致命率', '躲避率', '法爆率', '爆伤力']
+  return 序.map((k) => ({ k, v: Math.round(Number(o[k]) || 0) }))
 })
 
 const 副将性别前缀 = computed(() => 副将配置性别(当前.value?.人物))
+
+function fmt成长三位(v) {
+  return String(Math.round(Number(v) * 1000) / 1000)
+}
+
+/** 左侧 = 底部总属性（`computeUnitAttrs`）；右侧 = 同流水线套用无双成长增量 */
+const 无双形态预览行 = computed(() => {
+  const u = 当前.value
+  if (!u?.人物?.trim()) return []
+  if (副将无双成长增量(u.无双等级) <= 0) return []
+  const base = 副将战斗属性.value
+  const uns = computeUnitAttrs副将无双形态(u)
+  if (!base || !uns) return []
+  const g0 = 副将有效成长(u.人物, { 星级: u.星级, 真: u.真, 转数: u.转数 })
+  const g1 = Math.round((g0 + 副将无双成长增量(u.无双等级)) * 1000) / 1000
+  const fg = (x) => fmt成长三位(x)
+  const row = (k) => `${base[k]}→${uns[k]}`
+  return [`成长:${fg(g0)}→${fg(g1)}`, `气血:${row('气血')}`, `精力:${row('精力')}`, `攻击:${row('攻击')}`, `速度:${row('速度')}`]
+})
 
 function sync槽位() {
   const i = 解析槽位()
@@ -333,10 +366,7 @@ const 副将星级可选 = computed(() => {
 })
 
 function 天赋效果文案(t) {
-  if (!t?.名称) return '—'
-  const p = 天赋百分比(t.名称, Number(t.等级) || 1)
-  const n = Math.round(p * 100) / 100
-  return `+${n}%`
+  return 天赋面板加成文案(t?.名称, t?.等级)
 }
 
 function clampInt(raw, lo, hi) {
@@ -429,14 +459,17 @@ function on默契度Blur() {
 }
 
 function on副将人物变更() {
-  const u = 当前.value
+  if (!槽位合法.value) return
+  const i = 槽位.value
+  const u = 配置.副将列表[i]
   if (!u) return
   const has = !!(u.人物 && String(u.人物).trim())
-  u.已配置 = has
   if (!has) {
-    u.人物 = ''
-    u.状态 = '休'
+    配置.副将列表[i] = JSON.parse(JSON.stringify(empty副将槽()))
+    副将上阵顺序同步(配置)
+    return
   }
+  u.已配置 = true
   副将上阵顺序同步(配置)
 }
 
@@ -556,6 +589,19 @@ function applyImport() {
 .ws-inp {
   max-width: 6rem;
   margin-bottom: 0;
+}
+.unshou-preview {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border, #2a3544);
+}
+.unshou-preview-line {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  color: var(--text, #e6edf3);
 }
 .main-lvl-career-row {
   display: flex;
@@ -812,8 +858,9 @@ function applyImport() {
 }
 .talent-effect {
   flex: 1 1 auto;
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 11px;
+  color: var(--accent);
+  line-height: 1.35;
   min-width: 4em;
 }
 .tal-lv {

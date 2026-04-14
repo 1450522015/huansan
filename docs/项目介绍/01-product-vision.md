@@ -49,12 +49,13 @@
 | 手游客户端 | `mobile/` | 登录注册、配置编辑、属性展示、本地凭据 | **V1 主战场** |
 | 主后端 | `nodejs/` | 鉴权、配置 CRUD、属性计算、管理 API、Socket | **V1** |
 | 管理后台 | `admin/` | 桌面布局、用户列表、改密、分页 | **已接入**（无登录） |
-| 共享规则与计算 | `common/` | `gameCatalog.js`（表与规范化）、`attrCalculator.js`（战斗属性） | 与 [05](./05-装备坐骑宝石与技能表.md)、[06](./06-天赋与技能熟练度.md)、[08](./08-战斗属性与计算说明.md) 等 **对照维护** |
+| 共享规则与计算 | `common/` | `gameCatalog.js`（表与规范化）、`attrCalculator.js`（战斗属性） | 与 [05](./05-gear-mount-gems-skills.md)、[06](./06-talents-skill-mastery.md)、[08](./08-battle-attrs.md) 等 **对照维护** |
 
 ---
 
 ## 1.6 相关文档
 
-- [02-仓库结构与技术栈.md](./02-仓库结构与技术栈.md)  
-- [04-配置数据模型.md](./04-配置数据模型.md)  
+- [02-repo-layout.md](./02-repo-layout.md)  
+- [04-config-schema.md](./04-config-schema.md)  
 - 原始愿景补充：[../我对这个项目的描述.md](../我对这个项目的描述.md)
+

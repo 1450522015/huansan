@@ -6,7 +6,7 @@
         <button class="btn" type="button" :disabled="configSaving" @click="onSave">保存</button>
         <button class="btn secondary" type="button" @click="onRevert">回退</button>
         <button class="btn secondary" type="button" @click="openImp = true">导入</button>
-        <button class="btn secondary" type="button" @click="downloadConfigJson">导出</button>
+        <button class="btn secondary" type="button" @click="onOpenExport">导出</button>
       </div>
     </div>
     <div v-if="configBanner" class="msg banner-msg" :class="bannerTone">{{ configBanner }}</div>
@@ -62,11 +62,22 @@
 
     <div v-if="openImp" class="modal" @click.self="openImp = false">
       <div class="modal-body card">
-        <h3 style="margin-top: 0">导入 JSON</h3>
+        <h3 style="margin-top: 0">导入</h3>
         <textarea v-model="importText" class="imp-ta" placeholder="粘贴完整配置 JSON"></textarea>
         <div class="row">
           <button class="btn" type="button" @click="onApplyImport">覆盖本地配置</button>
           <button class="btn secondary" type="button" @click="openImp = false">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="openExp" class="modal" @click.self="openExp = false">
+      <div class="modal-body card">
+        <h3 style="margin-top: 0">导出</h3>
+        <textarea :value="exportText" class="imp-ta" readonly></textarea>
+        <div class="row">
+          <button class="btn" type="button" @click="onCopyExport">复制</button>
+          <button class="btn secondary" type="button" @click="openExp = false">关闭</button>
         </div>
       </div>
     </div>
@@ -85,13 +96,14 @@ import {
   configSaving,
   savePlayerConfig,
   applyConfigImport,
-  downloadConfigJson,
   revertToVerifiedOrDefault,
 } from '@/shared/config/usePlayerConfig.js'
 
 const router = useRouter()
 const openImp = ref(false)
+const openExp = ref(false)
 const importText = ref('')
+const exportText = ref('')
 
 const 主将名 = computed(() => {
   try {
@@ -110,7 +122,8 @@ const 主将等级文案 = computed(() => {
 /** 第二行：坐骑名 + 坐骑的转数/等级，如「战马-3转160级」 */
 const 主将坐骑线 = computed(() => {
   const m = 配置.主将?.坐骑
-  const kind = m?.种类 || '—'
+  const kind = String(m?.种类 ?? '').trim()
+  if (!kind || kind === '无') return '无'
   const z = m?.转数 ?? 0
   const lv = m?.等级 ?? 1
   return `${kind}-${z}转${lv}级`
@@ -202,6 +215,38 @@ function onApplyImport() {
     configBanner.value = '已从 JSON 导入（未保存则仍为未认证）'
   } catch {
     configBanner.value = 'JSON 解析失败'
+  }
+}
+
+function onOpenExport() {
+  exportText.value = JSON.stringify(配置, null, 2)
+  openExp.value = true
+}
+
+async function onCopyExport() {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(exportText.value)
+      configBanner.value = '已复制导出 JSON'
+      return
+    }
+  } catch {
+    // fallback below
+  }
+  const ta = document.createElement('textarea')
+  ta.value = exportText.value
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  try {
+    document.execCommand('copy')
+    configBanner.value = '已复制导出 JSON'
+  } catch {
+    configBanner.value = '复制失败，请手动复制'
+  } finally {
+    document.body.removeChild(ta)
   }
 }
 

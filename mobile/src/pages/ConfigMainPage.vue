@@ -112,7 +112,7 @@
           <span class="lv-suffix-txt" aria-hidden="true">级</span>
         </div>
         <select v-model="配置.主将.坐骑.种类" class="ctl mount-kind-sel">
-          <option v-for="m in 坐骑列表" :key="m" :value="m">{{ m }}</option>
+          <option v-for="m in 主将坐骑种类选项" :key="m" :value="m">{{ m }}</option>
         </select>
       </div>
       <div class="mount-bonus-row">
@@ -126,9 +126,6 @@
       <div v-for="部位 in 装备部位列表" :key="部位" class="装备块">
         <div class="equip-head">
           <h4>{{ 部位 }}</h4>
-          <span v-if="装备加成文案(部位)" class="equip-bonus">{{ 装备加成文案(部位) }}</span>
-        </div>
-        <div class="equip-name-row">
           <select
             v-model="配置.主将.装备[部位].名称"
             class="ctl equip-name-sel"
@@ -143,10 +140,10 @@
           >
             <option v-for="c in 词条选项(部位)" :key="c.value" :value="c.value">{{ c.label }}</option>
           </select>
+          <span v-if="装备加成文案(部位)" class="equip-bonus">{{ 装备加成文案(部位) }}</span>
         </div>
-        <div class="gems">
+        <div v-show="配置.主将.装备[部位].名称 !== 主将装备无" class="gems">
           <div class="gem-line">
-            <span class="gem-lab">宝石</span>
             <div v-for="idx in [0, 1, 2]" :key="部位 + 'g' + idx" class="gem-cell">
               <select
                 class="gem-sel"
@@ -154,7 +151,7 @@
                 @change="setSlotGem(部位, idx, $event.target.value)"
               >
                 <option value="">—</option>
-                <option v-for="o in 主将装备宝石属性" :key="o" :value="o">{{ o }}</option>
+                <option v-for="o in 主将装备宝石可选属性(部位)" :key="o" :value="o">{{ o }}</option>
               </select>
               <input
                 class="gem-num ctl-d2"
@@ -260,10 +257,12 @@ import { useRoute, useRouter } from 'vue-router'
 import BattleAttrsPanel from '@/components/BattleAttrsPanel.vue'
 import {
   装备部位列表,
-  主将装备宝石属性,
+  主将装备无,
+  主将装备宝石可选属性,
   副将宝石属性,
-  坐骑列表,
+  主将坐骑种类选项,
   坐骑战斗加成,
+  坐骑战斗阶段占位,
   帮派抗性可选,
   帮派战斗加成,
   normalize帮派抗性项,
@@ -277,11 +276,12 @@ import {
   头盔配置,
   天赋名称列表,
   天赋说明,
-  天赋百分比,
+  天赋面板加成文案,
   空闲点,
   计算风格,
   修正属性分配,
   默认技能组,
+  解析装备格,
   解析装备格汇总,
   单维属性上限,
   技能等级档位列表,
@@ -321,7 +321,14 @@ const 坐骑加成展示 = computed(() => {
       return `${k}+${n}`
     })
     .filter(Boolean)
-  return parts.join('，')
+  const extra = 坐骑战斗阶段占位(m.种类, m.等级, m.转数).map((p) => {
+    if (p.展示) return p.展示
+    if (p.数值 != null && Number.isFinite(p.数值)) {
+      return `${p.键}+${p.数值}`
+    }
+    return p.键
+  })
+  return [...parts, ...extra].join('，')
 })
 
 const 帮派加成展示 = computed(() => {
@@ -380,10 +387,7 @@ const 空闲显示 = computed(() => 空闲点(当前.value.等级, 当前.value.
 const 风格显示 = computed(() => 计算风格(当前.value.等级, 当前.value.属性分配))
 
 function 天赋效果文案(t) {
-  if (!t?.名称) return '—'
-  const p = 天赋百分比(t.名称, Number(t.等级) || 1)
-  const n = Math.round(p * 100) / 100
-  return `+${n}%`
+  return 天赋面板加成文案(t?.名称, t?.等级)
 }
 
 function clampInt(raw, lo, hi) {
@@ -456,16 +460,19 @@ function clamp四维() {
 }
 
 function 名称选项(部位) {
-  if (部位 === '头盔') return 头盔名称列表
-  if (部位 === '项饰') return 项饰名称列表
-  if (部位 === '武器') return 武器名称列表
-  if (部位 === '护腕') return 护腕名称列表
-  if (部位 === '铠甲') return 铠甲名称列表
-  return 战靴名称列表
+  let list = []
+  if (部位 === '头盔') list = 头盔名称列表
+  else if (部位 === '项饰') list = 项饰名称列表
+  else if (部位 === '武器') list = 武器名称列表
+  else if (部位 === '护腕') list = 护腕名称列表
+  else if (部位 === '铠甲') list = 铠甲名称列表
+  else list = 战靴名称列表
+  return [主将装备无, ...list]
 }
 
 function 需装备词条(部位) {
   const 格 = 配置.主将.装备[部位]
+  if (!格?.名称 || 格.名称 === 主将装备无) return false
   if (部位 === '战靴') return true
   const cfg = 头盔配置[格.名称]
   return !!(cfg && cfg.词条.length > 1)
@@ -487,7 +494,7 @@ function 词条选项(部位) {
 
 function 装备加成文案(部位) {
   const 格 = 配置.主将.装备[部位]
-  const o = 解析装备格汇总(部位, 格)
+  const o = 解析装备格(部位, 格)
   return Object.entries(o)
     .map(([k, v]) => `${k}+${v}`)
     .join('，')
@@ -495,6 +502,11 @@ function 装备加成文案(部位) {
 
 function on装备名称变更(部位) {
   const 格 = 配置.主将.装备[部位]
+  if (格.名称 === 主将装备无) {
+    格.词条 = null
+    格.宝石 = [null, null, null]
+    return
+  }
   if (部位 === '战靴') {
     格.词条 = '速度'
     return
@@ -761,15 +773,6 @@ function applyImport() {
   line-height: 1.45;
   color: var(--accent, #6ee7b7);
 }
-.equip-name-row {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  width: max-content;
-  max-width: 100%;
-}
 .equip-name-sel {
   flex: 0 0 auto !important;
   width: max-content !important;
@@ -827,8 +830,8 @@ function applyImport() {
 .equip-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 10px;
+  align-items: center;
+  gap: 6px 8px;
   margin-bottom: 6px;
 }
 .equip-head h4 {
@@ -856,11 +859,6 @@ function applyImport() {
   align-items: center;
   gap: 6px;
   margin-top: 4px;
-}
-.gem-lab {
-  font-size: 12px;
-  color: var(--muted);
-  margin-right: 2px;
 }
 .gem-cell {
   display: flex;
@@ -897,8 +895,9 @@ function applyImport() {
 }
 .talent-effect {
   flex: 1 1 auto;
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 11px;
+  color: var(--accent);
+  line-height: 1.35;
   min-width: 4em;
 }
 .tal-lv {
