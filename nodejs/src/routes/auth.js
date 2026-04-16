@@ -25,7 +25,7 @@ authRouter.post('/register', async (req, res) => {
       用户名: v.用户名,
       密码哈希,
       配置: getDefaultConfig(),
-      配置已认证: false,
+      配置已认证: true, // 注册时即拥有一套默认的已保存配置
       最近登录时间: new Date(),
     })
     const token = signToken(doc._id)

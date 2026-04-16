@@ -6,7 +6,7 @@
 
 > **与代码的关系**：玩法表、装备名、分段数值等 **以本文档为规格说明**；实现上同步维护在仓库根目录 [`common/gameCatalog.js`](../../common/gameCatalog.js) 与 [`common/attrCalculator.js`](../../common/attrCalculator.js)（供 Node 与 Mobile 引用，避免双份逻辑）。若规格变更，应 **先改文档再改代码**，或至少在 PR 中注明二者已对齐。
 
-> **文件命名**：下表 **01–19** 专题文档采用 **`NN-english-slug.md`（全 ASCII）**，便于跨平台路径、全文检索与自动化；**标题与正文仍为中文**。
+> **文件命名**：下表 **01–20** 专题文档采用 **`NN-english-slug.md`（全 ASCII）**，便于跨平台路径、全文检索与自动化；**标题与正文仍为中文**。
 
 ---
 
@@ -33,6 +33,7 @@
 | 17 | [17-mount.md](./17-mount.md) | 坐骑成长值与各坐骑战斗加成公式（规格） |
 | 18 | [18-main-gear.md](./18-main-gear.md) | 主将六部位装备与宝石属性列表（规格） |
 | 19 | [19-talents.md](./19-talents.md) | 天赋槽规则、效果说明与分段数值表（规格） |
+| 20 | [20-battle-actions.md](./20-battle-actions.md) | 战局可选操作、物品、Socket 回合同步与 canonical 单位 key |
 
 ---
 

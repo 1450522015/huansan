@@ -156,9 +156,10 @@
               <input
                 class="gem-num ctl-d2"
                 type="number"
-                min="1"
-                max="15"
-                :value="配置.主将.装备[部位].宝石[idx]?.数值 ?? 15"
+                :min="宝石下限值(部位, idx)"
+                :max="宝石上限值(部位, idx)"
+                :step="宝石步长值(部位, idx)"
+                :value="配置.主将.装备[部位].宝石[idx]?.数值 ?? 宝石上限值(部位, idx)"
                 @input="setSlotGemNum(部位, idx, $event.target.value)"
                 @blur="blurSlotGemNum(部位, idx)"
               />
@@ -221,7 +222,6 @@
       <h3>技能</h3>
       <div v-for="(s, i) in 当前.技能" :key="'sk' + i" class="skill-row-h">
         <span class="sk-n">{{ s.名称 }}</span>
-        <label class="shrink-lab wide-lab">等级</label>
         <select v-model="s.等级" class="sk-tier ctl-fit" @change="on技能档位变更(i)">
           <option v-for="row in 技能等级档位列表" :key="row.档位" :value="row.档位">{{ row.显示 }}</option>
         </select>
@@ -233,6 +233,7 @@
           @blur="clamp技能熟练(i)"
           @change="clamp技能熟练(i)"
         />
+        <span class="skill-effect">{{ 技能当前效果文案(s, { 战斗属性: 主将战斗属性, 坐骑: 配置.主将?.坐骑, 天赋: 当前.天赋 }) }}</span>
       </div>
     </div>
 
@@ -259,6 +260,9 @@ import {
   装备部位列表,
   主将装备无,
   主将装备宝石可选属性,
+  宝石属性最小值,
+  宝石属性最大值,
+  宝石属性步长,
   副将宝石属性,
   主将坐骑种类选项,
   坐骑战斗加成,
@@ -287,6 +291,7 @@ import {
   技能等级档位列表,
   技能档位范围,
   clamp熟练度到档位,
+  技能当前效果文案,
   computeAttrsFromConfig,
   computeUnitBattleDebug,
 } from '@/shared/config/defaults.js'
@@ -427,7 +432,13 @@ function on天赋等级Blur(t) {
 function blurSlotGemNum(部位, idx) {
   const 格 = 配置.主将.装备[部位]
   if (!格?.宝石[idx]) return
-  格.宝石[idx].数值 = clampInt(格.宝石[idx].数值, 1, 15)
+  const min = 宝石属性最小值(格.宝石[idx]?.属性)
+  const max = 宝石属性最大值(格.宝石[idx]?.属性)
+  const step = 宝石属性步长(格.宝石[idx]?.属性)
+  const raw = Number(格.宝石[idx].数值)
+  const base = Number.isFinite(raw) ? raw : max
+  const snapped = min + Math.round((base - min) / step) * step
+  格.宝石[idx].数值 = Math.min(max, Math.max(min, snapped))
 }
 
 function on当前世职业变更() {
@@ -517,19 +528,42 @@ function on装备名称变更(部位) {
 
 function setSlotGem(部位, idx, 属性) {
   const 格 = 配置.主将.装备[部位]
-  if (!格.宝石[idx]) 格.宝石[idx] = { 属性: '', 数值: 15 }
+  if (!格.宝石[idx]) 格.宝石[idx] = { 属性: '', 数值: 宝石属性最大值('') }
   if (!属性) {
     格.宝石[idx] = null
     return
   }
-  格.宝石[idx] = { 属性, 数值: 格.宝石[idx]?.数值 ?? 15 }
+  const max = 宝石属性最大值(属性)
+  // 切换宝石属性时，自动跳到该属性当前上限，减少手工调值步骤
+  格.宝石[idx] = { 属性, 数值: max }
 }
 
 function setSlotGemNum(部位, idx, raw) {
   const 格 = 配置.主将.装备[部位]
   if (!格.宝石[idx]) return
-  const n = Math.min(15, Math.max(1, Number(raw) || 15))
+  const min = 宝石属性最小值(格.宝石[idx]?.属性)
+  const max = 宝石属性最大值(格.宝石[idx]?.属性)
+  const step = 宝石属性步长(格.宝石[idx]?.属性)
+  const base = Number(raw)
+  const picked = Number.isFinite(base) ? base : max
+  const snapped = min + Math.round((picked - min) / step) * step
+  const n = Math.min(max, Math.max(min, snapped))
   格.宝石[idx].数值 = n
+}
+
+function 宝石下限值(部位, idx) {
+  const attr = 配置?.主将?.装备?.[部位]?.宝石?.[idx]?.属性
+  return 宝石属性最小值(attr)
+}
+
+function 宝石上限值(部位, idx) {
+  const attr = 配置?.主将?.装备?.[部位]?.宝石?.[idx]?.属性
+  return 宝石属性最大值(attr)
+}
+
+function 宝石步长值(部位, idx) {
+  const attr = 配置?.主将?.装备?.[部位]?.宝石?.[idx]?.属性
+  return 宝石属性步长(attr)
 }
 
 function applyImport() {
@@ -539,7 +573,7 @@ function applyImport() {
     openImport.value = false
     importText.value = ''
     提示类型.value = 'ok'
-    提示.value = '已从 JSON 导入（请在主页保存并通过校验后认证）'
+    提示.value = '已从 JSON 导入（请在主页保存）'
   } catch {
     提示类型.value = 'error'
     提示.value = 'JSON 解析失败'
@@ -868,14 +902,28 @@ function applyImport() {
 }
 .gem-sel {
   flex: 0 1 auto;
-  width: auto;
-  min-width: 4.5rem;
-  max-width: min(100%, 9.5rem);
+  width: 3.74rem !important;
+  min-width: 3.74rem !important;
+  max-width: 3.74rem !important;
   font-size: 11px;
-  padding: 6px 4px;
+  padding: 6px 14px 6px 5px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 7px) calc(50% - 1px),
+    calc(100% - 4px) calc(50% - 1px);
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
 }
 .gem-num {
   flex: 0 0 auto;
+  width: 3.45rem;
+  min-width: 3.45rem;
+  max-width: 3.45rem;
   padding: 6px 3px;
 }
 .talent-line {
@@ -906,25 +954,34 @@ function applyImport() {
 }
 .skill-row-h {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
   font-size: 13px;
 }
 .sk-n {
-  flex: 1 1 100%;
+  flex: 0 0 auto;
   font-weight: 600;
-  margin: 0 0 2px;
+  margin: 0;
 }
 .sk-tier {
   font-size: 10px;
   padding: 6px 4px;
-  max-width: min(100%, 17rem) !important;
+  width: 6.6em;
+  min-width: 6.6em;
+  max-width: 6.6em !important;
 }
 .sk-pro {
   flex: 0 0 auto;
   padding: 6px 4px;
+}
+.skill-effect {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--accent);
+  line-height: 1.35;
+  min-width: 6em;
 }
 .modal {
   position: fixed;

@@ -1,4 +1,4 @@
-const 安全用户名字符 = /^[\u4e00-\u9fa5a-zA-Z0-9_]{1,20}$/
+const 安全用户名字符 = /^[\u4e00-\u9fa5a-zA-Z0-9]{1,5}$/
 
 export function validateCredentials(用户名, 密码) {
   if (typeof 用户名 !== 'string' || typeof 密码 !== 'string') {
@@ -6,11 +6,14 @@ export function validateCredentials(用户名, 密码) {
   }
   const u = 用户名.trim()
   const p = 密码
-  if (u.length < 1 || u.length > 20 || p.length < 1 || p.length > 20) {
-    return { ok: false, 消息: '用户名与密码长度须为 1-20' }
+  if (u.length < 1 || u.length > 5) {
+    return { ok: false, 消息: '用户名长度须为 1-5 个字符' }
+  }
+  if (p.length < 1 || p.length > 20) {
+    return { ok: false, 消息: '密码长度须为 1-20 个字符' }
   }
   if (!安全用户名字符.test(u)) {
-    return { ok: false, 消息: '用户名仅允许中文、字母、数字、下划线' }
+    return { ok: false, 消息: '用户名仅允许中文、英文字母、数字' }
   }
   if (/[<>'"&]/.test(p)) {
     return { ok: false, 消息: '密码包含不允许的字符' }

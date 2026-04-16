@@ -130,7 +130,7 @@ textarea {
   padding: 8px 2px;
 }
 
-.tabs a.router-link-active {
+.tabs a.router-link-exact-active {
   color: var(--accent);
   font-weight: 600;
 }

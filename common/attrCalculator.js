@@ -52,7 +52,7 @@ const 特殊属性键 = [
 
 const 四维键 = ['体质', '智力', '力量', '敏捷']
 
-/** 与 `finalizeBattleResult` 输出一致的数值键；字符串型（如连击数 `2~3`）跳过 */
+/** 与 `finalizeBattleResult` 输出一致的数值键。 */
 const 战斗属性输出数值键 = [...基础属性键, ...特殊属性键, '忽视率']
 
 function emptyAcc() {
@@ -414,6 +414,19 @@ export function computeAttrsFromConfig(配置) {
     副将1: 计算单位(flat.副将1, { 主将: false }),
     副将2: 计算单位(flat.副将2, { 主将: false }),
     副将3: 计算单位(flat.副将3, { 主将: false }),
+  }
+}
+
+export function computeAttrsFromConfig无双(配置) {
+  if (!配置 || typeof 配置 !== 'object') {
+    return { 主将: null, 副将1: null, 副将2: null, 副将3: null }
+  }
+  const flat = 展开战斗用副将占位(配置)
+  return {
+    主将: 计算单位(flat.主将, { 主将: true }),
+    副将1: 计算单位(flat.副将1, { 主将: false, 副将无双成长: true }),
+    副将2: 计算单位(flat.副将2, { 主将: false, 副将无双成长: true }),
+    副将3: 计算单位(flat.副将3, { 主将: false, 副将无双成长: true }),
   }
 }
 

@@ -47,6 +47,7 @@
           max="160"
           @blur="on无双等级Blur"
         />
+        <span class="ws-chance">几率：{{ 无双几率显示 }}%</span>
       </div>
       <div v-if="无双形态预览行.length" class="unshou-preview">
         <div v-for="(line, idx) in 无双形态预览行" :key="'us' + idx" class="unshou-preview-line">{{ line }}</div>
@@ -161,7 +162,7 @@
           class="deputy-num ctl-d2"
           type="number"
           min="1"
-          max="15"
+          :max="宝石上限值(g)"
           @blur="on副将宝石数值Blur(g)"
         />
         <button class="btn secondary btn-mini" type="button" @click="当前.宝石.splice(i, 1)">删</button>
@@ -197,9 +198,14 @@
 
     <div v-if="槽位合法" class="card card-tight">
       <h3>技能</h3>
+      <div v-if="当前.头衔 === '神将'" class="field-h">
+        <label class="shrink-lab">神将技</label>
+        <select v-model="当前.神将技" class="ctl ctl-fit">
+          <option v-for="name in 当前可用神将技列表" :key="name" :value="name">{{ name }}</option>
+        </select>
+      </div>
       <div v-for="(s, i) in 当前.技能" :key="'sk' + i" class="skill-row-h">
-        <span class="sk-n">{{ s.名称 }}</span>
-        <label class="shrink-lab wide-lab">等级</label>
+        <span class="sk-n">{{ s.名称 === 当前.神将技 ? s.名称 + '(神)' : s.名称 }}</span>
         <select v-model="s.等级" class="sk-tier ctl-fit" @change="on技能档位变更(i)">
           <option v-for="row in 技能等级档位列表" :key="row.档位" :value="row.档位">{{ row.显示 }}</option>
         </select>
@@ -211,6 +217,7 @@
           @blur="clamp技能熟练(i)"
           @change="clamp技能熟练(i)"
         />
+        <span class="skill-effect">{{ 技能当前效果文案(s, { 战斗属性: 副将战斗属性, 天赋: 当前?.天赋, 神将技: 当前?.神将技, 等级: 当前?.等级 }) }}</span>
       </div>
     </div>
 
@@ -256,6 +263,9 @@ import {
   技能等级档位列表,
   技能档位范围,
   clamp熟练度到档位,
+  技能当前效果文案,
+  神将技技能列表,
+  可用神将技列表,
   副将槽位总数,
   empty副将槽,
   副将上阵顺序同步,
@@ -264,6 +274,9 @@ import {
   computeUnitBattleDebug,
   副将有效成长,
   副将无双成长增量,
+  无双几率,
+  宝石属性最大值,
+  默认神将技,
 } from '@/shared/config/defaults.js'
 import { 配置, applyConfigImport } from '@/shared/config/usePlayerConfig.js'
 
@@ -322,6 +335,30 @@ const 默契加成格子 = computed(() => {
 
 const 副将性别前缀 = computed(() => 副将配置性别(当前.value?.人物))
 
+const 无双几率显示 = computed(() => 无双几率(当前.value?.无双等级 || 0))
+
+const 默认神将技名 = computed(() => {
+  const cfg = 当前.value
+  if (!cfg) return '舍命一击'
+  return 默认神将技(cfg.职业经历?.[3] || cfg.人物 || '男武')
+})
+
+const 当前神将技显示名 = computed(() => {
+  const cfg = 当前.value
+  if (cfg?.头衔 !== '神将') return ''
+  const selected = cfg?.神将技 || ''
+  const def = 默认神将技名.value
+  if (selected && selected !== def) return selected
+  return def
+})
+
+const 当前可用神将技列表 = computed(() => {
+  const cfg = 当前.value
+  if (cfg?.头衔 !== '神将') return []
+  const classType = cfg?.职业经历?.[3] || cfg?.人物 || '男武'
+  return 可用神将技列表(classType)
+})
+
 function fmt成长三位(v) {
   return String(Math.round(Number(v) * 1000) / 1000)
 }
@@ -351,6 +388,16 @@ function sync槽位() {
 
 watch(() => route.query.slot, sync槽位)
 onMounted(sync槽位)
+
+watch(() => 当前.value?.职业经历?.[3], (newClass) => {
+  if (!当前.value || 当前.value.头衔 !== '神将') return
+  const newDef = 默认神将技(newClass || '男武')
+  const newList = 可用神将技列表(newClass || '男武')
+  const prev = 当前.value.神将技
+  if (!prev || !newList.includes(prev)) {
+    当前.value.神将技 = newDef
+  }
+})
 
 const 等级显示 = computed(() => Math.min(160, Math.max(1, Number(当前.value?.等级) || 1)))
 const 空闲显示 = computed(() => 空闲点(当前.value?.等级, 当前.value?.属性分配))
@@ -399,7 +446,12 @@ function on天赋等级Blur(t) {
 }
 
 function on副将宝石数值Blur(g) {
-  g.数值 = clampInt(g.数值, 1, 15)
+  const max = 宝石属性最大值(g?.属性)
+  g.数值 = clampInt(g.数值, 1, max)
+}
+
+function 宝石上限值(g) {
+  return 宝石属性最大值(g?.属性)
 }
 
 function 副将轴显示(i) {
@@ -510,7 +562,7 @@ function applyImport() {
     openImport.value = false
     importText.value = ''
     提示类型.value = 'ok'
-    提示.value = '已从 JSON 导入（请在主页保存并通过校验后认证）'
+    提示.value = '已从 JSON 导入（请在主页保存）'
   } catch {
     提示类型.value = 'error'
     提示.value = 'JSON 解析失败'
@@ -589,6 +641,11 @@ function applyImport() {
 .ws-inp {
   max-width: 6rem;
   margin-bottom: 0;
+}
+.ws-chance {
+  font-size: 12px;
+  color: var(--accent, #6ee7b7);
+  white-space: nowrap;
 }
 .unshou-preview {
   margin-top: 10px;
@@ -725,6 +782,8 @@ function applyImport() {
   padding-right: 3px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  height: var(--input-h, 2.25rem);
+  box-sizing: border-box;
 }
 .ctl-d5 {
   flex: 0 0 auto !important;
@@ -742,6 +801,8 @@ function applyImport() {
   min-width: 3.2em;
   max-width: 5.25rem !important;
   padding: 6px 6px;
+  height: var(--input-h, 2.25rem);
+  box-sizing: border-box;
 }
 .ctl-fit {
   flex: 0 1 auto !important;
@@ -869,25 +930,34 @@ function applyImport() {
 }
 .skill-row-h {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
   font-size: 13px;
 }
 .sk-n {
-  flex: 1 1 100%;
+  flex: 0 0 auto;
   font-weight: 600;
-  margin: 0 0 2px;
+  margin: 0;
 }
 .sk-tier {
   font-size: 10px;
   padding: 6px 4px;
-  max-width: min(100%, 17rem) !important;
+  width: 6.6em;
+  min-width: 6.6em;
+  max-width: 6.6em !important;
 }
 .sk-pro {
   flex: 0 0 auto;
   padding: 6px 4px;
+}
+.skill-effect {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--accent);
+  line-height: 1.35;
+  min-width: 6em;
 }
 .btn-mini {
   padding: 6px 10px;

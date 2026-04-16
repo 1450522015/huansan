@@ -87,7 +87,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { 计算风格, 副将槽设为已战, 副将槽设为已休 } from '@/shared/config/defaults.js'
+import { 计算风格, 副将槽设为已战, 副将槽设为已休, format副将显示名 } from '@/shared/config/defaults.js'
 import {
   配置,
   配置已认证,
@@ -167,7 +167,7 @@ const 副将行 = computed(() => {
     const 已战 = s?.状态 === '战'
     return {
       i,
-      名: s?.已配置 && s?.人物 ? s.人物 : '无',
+      名: s?.已配置 && s?.人物 ? format副将显示名(s.人物, s?.真) : '无',
       等级文案: `${s?.转数 ?? 0}转${s?.等级 ?? 1}级`,
       职业四: 职业四缩(s?.职业经历),
       风格: 计算风格(s?.等级 ?? 1, s?.属性分配 || {}),
@@ -188,11 +188,11 @@ function on状态(i, 要战) {
 }
 
 const 认证文案 = computed(() => {
-  if (配置已认证.value && !configDirty.value) return '已认证'
-  return '未认证'
+  if (配置已认证.value && !configDirty.value) return '已保存'
+  return '未保存'
 })
 
-const 认证样式 = computed(() => (认证文案.value === '已认证' ? 'ok' : 'warn'))
+const 认证样式 = computed(() => (认证文案.value === '已保存' ? 'ok' : 'warn'))
 
 const bannerTone = computed(() => (configBanner.value && configBanner.value.includes('失败') ? 'error' : 'ok'))
 
@@ -203,7 +203,7 @@ async function onSave() {
 
 function onRevert() {
   const { hadSnapshot } = revertToVerifiedOrDefault()
-  configBanner.value = hadSnapshot ? '已回退到上次已认证配置' : '无已认证快照，已回退为默认初始配置'
+  configBanner.value = hadSnapshot ? '已回退到上次保存配置' : '无已保存快照，已回退为默认初始配置'
 }
 
 function onApplyImport() {

@@ -7,6 +7,9 @@
         <router-link to="/users" class="nav-item" :class="{ active: route.name === 'users' }">
           用户管理
         </router-link>
+        <router-link to="/battles" class="nav-item" :class="{ active: route.name === 'battles' }">
+          战局管理
+        </router-link>
       </nav>
     </aside>
     <div class="main-wrap">

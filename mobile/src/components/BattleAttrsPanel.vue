@@ -69,12 +69,14 @@ const 展示格 = computed(() => {
   const rows = []
   for (const k of order) {
     if (!Object.prototype.hasOwnProperty.call(d, k) || 面板排除键.has(k)) continue
-    rows.push([k, d[k]])
+    const val = (k === '连击数' && Number.isFinite(Number(d[k]))) ? `2~${Math.max(2, Math.trunc(Number(d[k]) || 2))}` : d[k]
+    rows.push([k, val])
     seen.add(k)
   }
   for (const k of Object.keys(d).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))) {
     if (seen.has(k) || 面板排除键.has(k)) continue
-    rows.push([k, d[k]])
+    const val = (k === '连击数' && Number.isFinite(Number(d[k]))) ? `2~${Math.max(2, Math.trunc(Number(d[k]) || 2))}` : d[k]
+    rows.push([k, val])
   }
   return rows
 })

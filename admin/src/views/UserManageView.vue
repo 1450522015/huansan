@@ -52,6 +52,7 @@
           <thead>
             <tr>
               <th class="col-user">用户名</th>
+              <th>在线状态</th>
               <th>注册时间</th>
               <th>最后登录</th>
               <th>登录状态</th>
@@ -60,7 +61,7 @@
           </thead>
           <tbody>
             <tr v-if="loading" class="row-loading">
-              <td colspan="5">
+              <td colspan="6">
                 <div class="loading-cell">
                   <span class="spinner" aria-hidden="true" />
                   <span>加载中…</span>
@@ -68,7 +69,7 @@
               </td>
             </tr>
             <tr v-else-if="!list.length" class="row-empty">
-              <td colspan="5">
+              <td colspan="6">
                 <div class="empty-inner">
                   <span class="empty-title">暂无数据</span>
                   <span class="empty-hint">调整筛选条件或稍后再试</span>
@@ -79,6 +80,9 @@
               <td class="td-user">
                 <span class="user-name">{{ row.用户名 }}</span>
               </td>
+              <td>
+                <span class="badge" :class="row.在线状态 === '在线' ? 'badge-online' : 'badge-offline'">{{ row.在线状态 }}</span>
+              </td>
               <td class="td-muted">{{ fmtTime(row.创建时间) }}</td>
               <td class="td-muted">{{ row.最近登录时间 ? fmtTime(row.最近登录时间) : '—' }}</td>
               <td>
@@ -87,7 +91,10 @@
                 }}</span>
               </td>
               <td>
-                <button type="button" class="btn-action" @click="openPwd(row)">修改密码</button>
+                <button type="button" class="btn-action" @click="openPwd(row)">改密</button>
+                <button type="button" class="btn-action btn-action-copy" :disabled="copyingId === row.id" @click="onCopyConfig(row)">
+                  {{ copyingId === row.id ? '复制中…' : '复制配置' }}
+                </button>
               </td>
             </tr>
           </tbody>
@@ -163,6 +170,7 @@ const newPwd = ref('')
 const newPwd2 = ref('')
 const pwdError = ref('')
 const pwdLoading = ref(false)
+const copyingId = ref(null)
 
 const pwdAvatar = computed(() => {
   const u = pwdUser.value?.用户名
@@ -276,6 +284,32 @@ async function submitPwd() {
     pwdError.value = e?.response?.data?.错误 || '修改失败'
   } finally {
     pwdLoading.value = false
+  }
+}
+
+async function onCopyConfig(row) {
+  copyingId.value = row.id
+  try {
+    const { data } = await http.get(`/api/admin/users/${row.id}/config`)
+    const json = JSON.stringify(data.配置, null, 2)
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(json)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = json
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    error.value = `已复制 ${row.用户名} 的配置 JSON`
+  } catch (e) {
+    error.value = e?.response?.data?.错误 || '复制配置失败'
+  } finally {
+    setTimeout(() => { copyingId.value = null }, 600)
   }
 }
 
@@ -471,7 +505,7 @@ onMounted(load)
 }
 
 .col-action {
-  width: 112px;
+  min-width: 140px;
   text-align: right;
 }
 
@@ -560,6 +594,16 @@ onMounted(load)
 .btn-action:hover {
   background: #eff6ff;
   border-color: var(--primary);
+}
+
+.btn-action-copy {
+  margin-left: 6px;
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #059669;
+}
+.btn-action-copy:hover:not(:disabled) {
+  background: #ecfdf5;
+  border-color: #059669;
 }
 
 .pager {
@@ -706,5 +750,15 @@ onMounted(load)
   padding: 4px 10px;
   font-size: 11px;
   letter-spacing: 0.02em;
+}
+.badge-online {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+.badge-offline {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
 }
 </style>
