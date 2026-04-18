@@ -2,6 +2,10 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import * as userRepo from '../repositories/userRepo.js'
 import * as battleRepo from '../repositories/battleRepo.js'
+import * as aiOpponentRepo from '../repositories/aiOpponentRepo.js'
+import * as battleEngine from '../services/battleEngine.js'
+import { buildBattleCurrentSnapshot } from '../services/battleCurrentPayload.js'
+import { filterUserBattleDisplayLines } from '../../../common/battleUserBattleText.js'
 import { validatePassword } from '../utils/validate.js'
 import { invalidateUser } from '../services/configCache.js'
 import { getOnlineUserIds } from '../services/onlineMap.js'
@@ -52,6 +56,28 @@ adminRouter.get('/users/:id/config', async (req, res) => {
   }
 })
 
+adminRouter.post('/users/:id/config/import', async (req, res) => {
+  const uid = parseUserIdParam(req.params.id)
+  if (uid == null) {
+    return res.status(400).json({ 错误: '无效的用户 ID' })
+  }
+  const { 配置 } = req.body || {}
+  if (!配置 || typeof 配置 !== 'object') {
+    return res.status(400).json({ 错误: '缺少配置数据' })
+  }
+  try {
+    const user = userRepo.findUserById(String(uid))
+    if (!user) return res.status(404).json({ 错误: '用户不存在' })
+    const ok = userRepo.updateUserConfig(String(uid), 配置)
+    if (!ok) return res.status(404).json({ 错误: '更新配置失败' })
+    invalidateUser(String(uid))
+    return res.json({ 成功: true })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ 错误: '导入配置失败' })
+  }
+})
+
 adminRouter.patch('/users/:id/password', async (req, res) => {
   const { 新密码 } = req.body || {}
   const v = validatePassword(新密码)
@@ -87,5 +113,92 @@ adminRouter.get('/battles', async (req, res) => {
   } catch (e) {
     console.error(e)
     return res.status(500).json({ 错误: '查询战局失败' })
+  }
+})
+
+adminRouter.get('/battles/:id/debug', async (req, res) => {
+  const bid = parseUserIdParam(req.params.id)
+  if (bid == null) {
+    return res.status(400).json({ 错误: '无效的战局 ID' })
+  }
+  try {
+    const battle = battleRepo.findBattleById(String(bid))
+    if (!battle) return res.status(404).json({ 错误: '战局不存在' })
+
+    const 战况文本系统 = Array.isArray(battle.战况文本系统累计) ? battle.战况文本系统累计 : []
+    const roundData =
+      battleEngine.getLatestRoundDataForBattle(Number(battle.id)) ||
+      battleEngine.getRoundData(Number(battle.id), battleRepo.getBattleRoundRowKeyForLog(battle))
+
+    /** 与 mobile `GET /api/battle/current` 同构；优先发起方视角，失败则换目标方（人机局等） */
+    const 战局与回合快照 =
+      buildBattleCurrentSnapshot(battle, battle.发起用户名) ||
+      buildBattleCurrentSnapshot(battle, battle.目标用户名)
+
+    const payload = {
+      生成时间: new Date().toISOString(),
+      说明:
+        '战局调试包：含 /api/battle/current 快照、最近一次回合结算事件；战况文本系统为自开战起按回合累计（与战局.战况文本系统累计同源）。',
+      战况文本系统,
+      战局与回合快照: 战局与回合快照 || { 战局: null },
+      最近回合结算事件: roundData
+        ? {
+            ...roundData,
+            战况文本系统,
+            战况文本用户: filterUserBattleDisplayLines(
+              Array.isArray(roundData.战况文本用户) ? roundData.战况文本用户 : [],
+            ),
+          }
+        : null,
+    }
+    return res.json(payload)
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ 错误: '获取战局调试信息失败' })
+  }
+})
+
+adminRouter.get('/ai-opponents', (_req, res) => {
+  try {
+    const list = aiOpponentRepo.listAllAiOpponents()
+    return res.json({ list })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ 错误: '查询人机失败' })
+  }
+})
+
+adminRouter.post('/ai-opponents', (req, res) => {
+  try {
+    const { 名称, 类型, 配置 } = req.body || {}
+    if (!名称 || typeof 名称 !== 'string' || !名称.trim()) {
+      return res.status(400).json({ 错误: '名称不能为空' })
+    }
+    if (!类型 || !['木桩', '大师'].includes(类型)) {
+      return res.status(400).json({ 错误: '类型必须为木桩或大师' })
+    }
+    if (!配置 || typeof 配置 !== 'object') {
+      return res.status(400).json({ 错误: '配置格式错误' })
+    }
+    const existing = aiOpponentRepo.findAiOpponentByName(名称.trim())
+    if (existing) {
+      return res.status(409).json({ 错误: '名称已存在' })
+    }
+    const item = aiOpponentRepo.createAiOpponent({ 名称: 名称.trim(), 类型, 配置 })
+    return res.json(item)
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ 错误: '创建人机失败' })
+  }
+})
+
+adminRouter.delete('/ai-opponents/:id', (req, res) => {
+  try {
+    const id = req.params.id
+    aiOpponentRepo.deleteAiOpponent(id)
+    return res.json({ 成功: true })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ 错误: '删除人机失败' })
   }
 })

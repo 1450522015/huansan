@@ -154,6 +154,19 @@ export function deleteBattle(idStr) {
   return r.changes > 0
 }
 
+/** 后台重启收口：将全部等待中/战局中战局置为已结束。 */
+export function endAllActiveBattles(reason = '服务器重启，战局终止') {
+  const now = new Date().toISOString()
+  const r = getDb().prepare(
+    `UPDATE battles
+       SET 状态 = '已结束',
+           备注 = COALESCE(备注, ?),
+           结束时间 = COALESCE(结束时间, ?)
+     WHERE 状态 IN ('等待中', '战局中')`,
+  ).run(reason, now)
+  return Number(r?.changes || 0)
+}
+
 /**
  * 本次 `battle-round-start` / `POST .../round/start` 应对齐的 **出招回合序号**（与 `battle_rounds.回合数` 一致）。
  *
@@ -192,6 +205,25 @@ export function parseBattleSideConfigSnapshot(battle, username) {
   }
 }
 
+function parseBattleTextAccumulated(raw) {
+  if (raw == null || raw === '') return []
+  try {
+    const p = JSON.parse(String(raw))
+    return Array.isArray(p) ? p : []
+  } catch {
+    return []
+  }
+}
+
+/** 持久化「战况文本系统」按回合累计的字符串数组（JSON） */
+export function setBattleTextAccumulated(idStr, lines) {
+  const id = Number.parseInt(String(idStr), 10)
+  if (!Number.isInteger(id) || id < 1) return false
+  const json = JSON.stringify(Array.isArray(lines) ? lines : [])
+  const r = getDb().prepare('UPDATE battles SET 战况文本系统累计 = ? WHERE id = ?').run(json, id)
+  return r.changes > 0
+}
+
 function rowToBattle(row) {
   if (!row) return null
   return {
@@ -206,5 +238,6 @@ function rowToBattle(row) {
     结束时间: row.结束时间 || null,
     发起方配置快照: row.发起方配置快照 ?? null,
     目标方配置快照: row.目标方配置快照 ?? null,
+    战况文本系统累计: parseBattleTextAccumulated(row.战况文本系统累计),
   }
 }

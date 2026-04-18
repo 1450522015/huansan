@@ -4,16 +4,11 @@ import { getToken } from '@/shared/auth/storage.js'
 
 let socket = null
 
-// 手动离线标志：只有用户主动点击"下线"才为 true
 let manualOffline = false
 
-// 连接状态：'offline' | 'connecting' | 'online'
 const connectionStatus = ref('offline')
-// 在线用户列表（仅在线时有效）
 const onlineList = ref([])
-// PK 等待中的目标用户名（用于取消）
 const pendingPkTarget = ref('')
-// 当前战局对手用户名（持久化以防刷新丢失）
 const currentOpponent = ref(localStorage.getItem('huansan_当前对手') || '')
 
 export function setCurrentOpponent(用户名) {
@@ -25,12 +20,10 @@ export function setCurrentOpponent(用户名) {
   }
 }
 
-/** 收到 pk-result 等终态时由 ShellLayout 等调用，解除大厅 PK 按钮占用 */
 export function clearPendingPkTarget() {
   pendingPkTarget.value = ''
 }
 
-// 持久化事件处理器缓存：事件名 -> Set<handler>
 const handlerMap = {
   'pk-request': new Set(),
   'pk-result': new Set(),
@@ -42,6 +35,7 @@ const handlerMap = {
   'actions-submitted': new Set(),
   'battle-error': new Set(),
   'battle-chat': new Set(),
+  'battle-fled': new Set(),
 }
 
 export function useSocketClient() {
@@ -61,6 +55,7 @@ export function useSocketClient() {
     onPkResult,
     offPkResult,
     emitPkCancel,
+    emitPkCheckPending,
     onPkCancel,
     offPkCancel,
     onPkSent,
@@ -81,25 +76,21 @@ export function useSocketClient() {
     emitBattleChat,
     onBattleChat,
     offBattleChat,
+    emitBattleFlee,
+    onBattleFled,
+    offBattleFled,
   }
 }
 
-/**
- * 连接服务器
- */
 export function connect() {
-  // 已连接则跳过
   if (socket?.connected) return
 
-  // 没有 token 无法连接
   const token = getToken()
   if (!token) return
 
-  // 清除手动离线标志
   manualOffline = false
   connectionStatus.value = 'connecting'
 
-  // 销毁旧 socket（如果有）
   if (socket) {
     socket.disconnect()
     socket = null
@@ -117,7 +108,6 @@ export function connect() {
   socket.on('connect', () => {
     if (!manualOffline) {
       connectionStatus.value = 'online'
-      // 重新注册所有缓存的事件处理器
       rebindHandlers()
     }
   })
@@ -142,9 +132,6 @@ export function connect() {
   })
 }
 
-/**
- * 将缓存中的所有 handler 绑定到当前 socket
- */
 function rebindHandlers() {
   if (!socket) return
   for (const [event, handlers] of Object.entries(handlerMap)) {
@@ -154,9 +141,6 @@ function rebindHandlers() {
   }
 }
 
-/**
- * 断开连接（组件卸载时调用）
- */
 export function disconnect() {
   if (socket) {
     socket.disconnect()
@@ -168,9 +152,6 @@ export function disconnect() {
   pendingPkTarget.value = ''
 }
 
-/**
- * 手动切换到离线状态（停止自动重连）
- */
 export function setManualOffline() {
   manualOffline = true
   if (socket) {
@@ -183,9 +164,6 @@ export function setManualOffline() {
   pendingPkTarget.value = ''
 }
 
-/**
- * 发送 PK 挑战
- */
 export function emitPkChallenge(目标用户名) {
   if (!socket?.connected) return false
   pendingPkTarget.value = 目标用户名
@@ -193,13 +171,15 @@ export function emitPkChallenge(目标用户名) {
   return true
 }
 
-/**
- * 取消 PK 挑战（发起方主动取消）
- */
 export function emitPkCancel(目标用户名) {
   if (!socket?.connected) return
   pendingPkTarget.value = ''
   socket.emit('pk-cancel', { 目标用户名 })
+}
+
+export function emitPkCheckPending() {
+  if (!socket?.connected) return
+  socket.emit('pk-check-pending')
 }
 
 export function onPkCancel(handler) {
@@ -258,8 +238,9 @@ export function offOnlineChange(handler) {
 }
 
 export function emitBattleRoundStart() {
-  if (!socket?.connected) return
+  if (!socket?.connected) return false
   socket.emit('battle-round-start')
+  return true
 }
 
 export function emitBattleActionsSubmit(data) {
@@ -321,4 +302,20 @@ export function onBattleChat(handler) {
 export function offBattleChat(handler) {
   handlerMap['battle-chat'].delete(handler)
   socket?.off('battle-chat', handler)
+}
+
+export function emitBattleFlee() {
+  if (!socket?.connected) return false
+  socket.emit('battle-flee')
+  return true
+}
+
+export function onBattleFled(handler) {
+  handlerMap['battle-fled'].add(handler)
+  socket?.on('battle-fled', handler)
+}
+
+export function offBattleFled(handler) {
+  handlerMap['battle-fled'].delete(handler)
+  socket?.off('battle-fled', handler)
 }

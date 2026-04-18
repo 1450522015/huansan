@@ -25,8 +25,6 @@
           <option value="真">真</option>
           <option value="无">无</option>
         </select>
-      </div>
-      <div class="row main-lvl-career-row deputy-career-in-first">
         <select
           v-for="ci in [0, 1, 2, 3]"
           :key="'ax' + ci"
@@ -47,7 +45,7 @@
           max="160"
           @blur="on无双等级Blur"
         />
-        <span class="ws-chance">几率：{{ 无双几率显示 }}%</span>
+        <span class="ws-chance">无双几率：{{ 无双几率显示 }}%</span>
       </div>
       <div v-if="无双形态预览行.length" class="unshou-preview">
         <div v-for="(line, idx) in 无双形态预览行" :key="'us' + idx" class="unshou-preview-line">{{ line }}</div>
@@ -149,31 +147,29 @@
     </div>
 
     <div v-if="槽位合法" class="card card-tight">
-      <div class="sub-head">
-        <h3>宝石</h3>
-        <span class="muted-small">{{ 当前.宝石.length }} / 9</span>
+      <h3>宝石</h3>
+      <div class="gem-grid">
+        <div v-for="(g, i) in 宝石矩阵" :key="'gem' + i" class="gem-cell">
+          <select v-model="g.属性" class="gem-sel">
+            <option value="">（空）</option>
+            <option v-for="o in 副将宝石属性" :key="o" :value="o">{{ o }}</option>
+          </select>
+          <input
+            v-model.number="g.数值"
+            class="gem-num ctl-d2"
+            type="number"
+            min="1"
+            :max="宝石上限值(g)"
+            :disabled="!g.属性"
+            @blur="on副将宝石数值Blur(g)"
+          />
+        </div>
       </div>
-      <div v-for="(g, i) in 当前.宝石" :key="i" class="field-h gem-deputy">
-        <select v-model="g.属性" class="ctl ctl-fit">
-          <option v-for="o in 副将宝石属性" :key="o" :value="o">{{ o }}</option>
-        </select>
-        <input
-          v-model.number="g.数值"
-          class="deputy-num ctl-d2"
-          type="number"
-          min="1"
-          :max="宝石上限值(g)"
-          @blur="on副将宝石数值Blur(g)"
-        />
-        <button class="btn secondary btn-mini" type="button" @click="当前.宝石.splice(i, 1)">删</button>
-      </div>
-      <button class="btn secondary btn-mini" type="button" :disabled="当前.宝石.length >= 9" @click="add副将宝石">
-        添加
-      </button>
     </div>
 
     <div v-if="槽位合法" class="card card-tight">
       <h3>天赋</h3>
+      <div v-if="重复天赋.length" class="dup-warning">天赋重复：{{ 重复天赋.join('、') }}</div>
       <div v-for="(t, i) in 当前.天赋" :key="'tf' + i" class="field-h talent-line">
         <select
           v-model="t.名称"
@@ -181,7 +177,7 @@
           :title="t.名称 && 天赋说明[t.名称] ? 天赋说明[t.名称] : ''"
         >
           <option :value="null">（空）</option>
-          <option v-for="name in 天赋名称列表" :key="name" :value="name">{{ name }}</option>
+          <option v-for="name in 天赋可选列表(i)" :key="name" :value="name">{{ name }}</option>
         </select>
         <label class="shrink-lab wide-lab">等级</label>
         <input
@@ -412,9 +408,32 @@ const 副将星级可选 = computed(() => {
   return out
 })
 
+const 重复天赋 = computed(() => {
+  const 名称列表 = (当前.value?.天赋 || []).map(t => t.名称).filter(Boolean)
+  const 重复 = []
+  for (const 名 of 名称列表) {
+    if (名称列表.filter(n => n === 名).length > 1 && !重复.includes(名)) {
+      重复.push(名)
+    }
+  }
+  return 重复
+})
+
+function 天赋可选列表(i) {
+  const 已选 = (当前.value?.天赋 || []).map((t, idx) => idx === i ? null : t.名称).filter(Boolean)
+  return 天赋名称列表.filter(name => !已选.includes(name))
+}
+
 function 天赋效果文案(t) {
   return 天赋面板加成文案(t?.名称, t?.等级)
 }
+
+const 宝石矩阵 = computed(() => {
+  const gems = 当前.value?.宝石 || []
+  while (gems.length < 9) gems.push({ 属性: '', 数值: 15 })
+  if (gems.length > 9) gems.length = 9
+  return gems
+})
 
 function clampInt(raw, lo, hi) {
   const x = Math.trunc(Number(raw))
@@ -596,6 +615,11 @@ function applyImport() {
   margin: 0 0 8px;
   font-size: 15px;
 }
+.dup-warning {
+  color: #f59e0b;
+  font-size: 12px;
+  margin: -4px 0 8px;
+}
 .deputy-identity-row {
   display: flex;
   flex-wrap: wrap;
@@ -607,22 +631,24 @@ function applyImport() {
   font-size: 12px;
   padding: 8px 6px;
 }
+.deputy-identity-row select,
+.deputy-identity-row input,
+.main-lvl-career-row select,
+.deputy-ws-row input {
+  width: max-content;
+}
 .id-sel-title,
 .id-sel-char {
   flex: 0 1 auto;
-  width: auto;
-  min-width: 3.5rem;
-  max-width: min(48vw, 16rem);
+  min-width: 2rem;
 }
 .id-sel-star {
   flex: 0 0 auto;
-  min-width: 3.5rem;
-  max-width: 5rem;
+  min-width: 2rem;
 }
 .id-sel-真 {
   flex: 0 0 auto;
-  min-width: 3.5rem;
-  max-width: 5rem;
+  min-width: 2rem;
 }
 .deputy-career-in-first {
   margin-bottom: 10px;
@@ -639,7 +665,13 @@ function applyImport() {
   color: var(--muted);
 }
 .ws-inp {
-  max-width: 6rem;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
   margin-bottom: 0;
 }
 .ws-chance {
@@ -733,12 +765,11 @@ function applyImport() {
 }
 .career-sel-tiny {
   flex: 0 0 auto;
-  width: auto;
-  min-width: 4.28em;
-  max-width: 5.85em;
+  width: max-content;
+  min-width: 2rem;
   font-size: 12px;
-  padding: 6px 4px;
-  box-sizing: border-box;
+  padding: 6px 8px;
+  text-align: center;
 }
 .ctl-z-nolab {
   margin-bottom: 0;
@@ -757,58 +788,58 @@ function applyImport() {
   font-size: 12px;
   color: var(--muted);
 }
-.field-h .ctl {
-  flex: 0 1 auto;
-  width: auto;
-  max-width: min(100%, 18rem);
-  margin-bottom: 0;
+.field-h .ctl,
+.field-h select,
+.field-h input[type='number'],
+.field-h input[type='text'] {
+  width: max-content;
 }
 .ctl-d3 {
   flex: 0 0 auto !important;
-  width: 2.65rem;
-  min-width: 2.65rem;
-  max-width: min(100%, 4rem) !important;
-  padding-left: 4px;
-  padding-right: 4px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .ctl-d2 {
   flex: 0 0 auto !important;
-  width: 2.1rem;
-  min-width: 2.1rem;
-  max-width: min(100%, 3.2rem) !important;
-  padding-left: 3px;
-  padding-right: 3px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  height: var(--input-h, 2.25rem);
-  box-sizing: border-box;
+  font-size: 12px;
+  field-sizing: content;
 }
 .ctl-d5 {
   flex: 0 0 auto !important;
-  width: 4.1rem;
-  min-width: 4.1rem;
-  max-width: min(100%, 5.5rem) !important;
-  padding-left: 4px;
-  padding-right: 4px;
+  width: max-content;
+  min-width: 2.5rem;
+  padding: 6px 8px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .ctl-z {
   flex: 0 0 auto !important;
-  width: auto;
-  min-width: 3.2em;
-  max-width: 5.25rem !important;
-  padding: 6px 6px;
-  height: var(--input-h, 2.25rem);
-  box-sizing: border-box;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
+  font-size: 12px;
+  text-align: center;
 }
 .ctl-fit {
   flex: 0 1 auto !important;
-  width: auto;
-  min-width: 5.5rem;
+  width: max-content;
+  min-width: 2rem;
   max-width: min(100%, 18rem) !important;
+  padding: 6px 8px;
+  font-size: 12px;
+  text-align: center;
 }
 .lvl-row {
   margin-bottom: 0;
@@ -872,10 +903,13 @@ function applyImport() {
   color: var(--muted);
 }
 .mutual-num {
-  width: 6.5rem;
-  max-width: min(100%, 9rem);
-  text-align: right;
+  width: max-content;
+  min-width: 2.5rem;
+  padding: 6px 8px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
   margin-bottom: 0 !important;
 }
 .mutual-bonus-grid {
@@ -895,18 +929,39 @@ function applyImport() {
   color: var(--muted);
   white-space: nowrap;
 }
-.gem-deputy {
-  margin-bottom: 6px;
+.gem-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 8px;
 }
-.deputy-num {
+.gem-cell {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.gem-cell .gem-sel {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  text-align: center;
+}
+.gem-cell .gem-num {
   flex: 0 0 auto;
-  padding: 6px 3px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .talent-line {
   flex-wrap: wrap;
 }
 .talent-line .ctl {
   max-width: min(100%, 14rem);
+  text-align: center;
 }
 .shrink-lab {
   flex: 0 0 auto;
@@ -926,7 +981,13 @@ function applyImport() {
 }
 .tal-lv {
   flex: 0 0 auto;
-  padding: 6px 4px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .skill-row-h {
   display: flex;
@@ -942,15 +1003,20 @@ function applyImport() {
   margin: 0;
 }
 .sk-tier {
-  font-size: 10px;
-  padding: 6px 4px;
-  width: 6.6em;
-  min-width: 6.6em;
-  max-width: 6.6em !important;
+  font-size: 12px;
+  padding: 6px 8px;
+  width: max-content;
+  min-width: 2rem;
 }
 .sk-pro {
   flex: 0 0 auto;
-  padding: 6px 4px;
+  width: max-content;
+  min-width: 2.5rem;
+  padding: 6px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .skill-effect {
   flex: 1 1 auto;

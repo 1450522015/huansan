@@ -45,11 +45,12 @@
               <th>回合数</th>
               <th>备注</th>
               <th class="col-detail">详情</th>
+              <th class="col-action">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading" class="row-loading">
-              <td colspan="8">
+              <td colspan="9">
                 <div class="loading-cell">
                   <span class="spinner" aria-hidden="true" />
                   <span>加载中…</span>
@@ -57,7 +58,7 @@
               </td>
             </tr>
             <tr v-else-if="!list.length" class="row-empty">
-              <td colspan="8">
+              <td colspan="9">
                 <div class="empty-inner">
                   <span class="empty-title">暂无数据</span>
                   <span class="empty-hint">调整筛选条件或稍后再试</span>
@@ -80,6 +81,14 @@
                 </template>
                 <template v-else-if="row.状态 === '已结束'">
                   {{ fmtTime(row.结束时间) }}
+                </template>
+                <template v-else>—</template>
+              </td>
+              <td class="col-action">
+                <template v-if="row.状态 === '战局中' || row.状态 === '已结束'">
+                  <button type="button" class="btn-action btn-action-copy" :disabled="copyingId === row.id" @click="onCopyDebug(row)">
+                    {{ copyingId === row.id ? '复制中…' : '复制调试' }}
+                  </button>
                 </template>
                 <template v-else>—</template>
               </td>
@@ -122,6 +131,7 @@ const pageSize = ref(20)
 const loading = ref(false)
 const error = ref('')
 const statusFilter = ref('all')
+const copyingId = ref(null)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
@@ -180,6 +190,32 @@ function next() {
   if (page.value >= totalPages.value) return
   page.value += 1
   load()
+}
+
+async function onCopyDebug(row) {
+  copyingId.value = row.id
+  try {
+    const { data } = await http.get(`/api/admin/battles/${row.id}/debug`)
+    const json = JSON.stringify(data, null, 2)
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(json)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = json
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    error.value = `已复制战局 ${row.id} 的调试信息`
+  } catch (e) {
+    error.value = e?.response?.data?.错误 || '复制调试信息失败'
+  } finally {
+    setTimeout(() => { copyingId.value = null }, 600)
+  }
 }
 
 onMounted(load)

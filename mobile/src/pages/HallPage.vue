@@ -47,10 +47,10 @@
               v-if="u.用户名 !== 当前用户名"
               class="btn pk-btn"
               type="button"
-              :disabled="pk按钮全局禁用"
+              :disabled="!canPkUser(u.用户名)"
               @click="onPk(u.用户名)"
             >
-              {{ pendingPkTarget === u.用户名 ? '…' : 'PK' }}
+              {{ pkButtonText(u.用户名) }}
             </button>
           </div>
         </div>
@@ -66,19 +66,20 @@ import { useRoute } from 'vue-router'
 import { http } from '@/shared/api/http.js'
 import {
   useSocketClient,
-  emitPkChallenge,
 } from '@/shared/socket/socketClient.js'
+import { useBattleStore } from '@/stores/battleStore.js'
 
 const route = useRoute()
 const {
   connectionStatus,
   onlineList,
-  pendingPkTarget,
   connect,
   setManualOffline,
   onOnlineChange,
   offOnlineChange,
 } = useSocketClient()
+
+const store = useBattleStore()
 
 const keyword = ref('')
 const page = ref(1)
@@ -90,7 +91,6 @@ const loadingMore = ref(false)
 const bannerMsg = ref('')
 const bannerTone = ref('ok')
 
-/** 当前用户进行中的战局（仅「战局中」时禁止大厅 PK） */
 const activePkBattle = ref(null)
 
 let searchTimer = null
@@ -100,14 +100,22 @@ const 当前用户名 = computed(() => {
 })
 
 const onlineCount = computed(() => onlineList.value.length)
+
 const 战局中不可PK = computed(() => activePkBattle.value?.状态 === '战局中')
 
-const pk按钮全局禁用 = computed(
-  () => 战局中不可PK.value || !!pendingPkTarget.value)
+function canPkUser(用户名) {
+  if (!store.canPk) return false
+  if (战局中不可PK.value) return false
+  return true
+}
+
+function pkButtonText(用户名) {
+  if (store.phase === 'waiting' && store.opponent === 用户名) return '…'
+  return 'PK'
+}
 
 const 可继续加载 = computed(() => {
   const kw = keyword.value.trim()
-  // 按用户要求：默认以右上角在线总人数驱动滚动分页；搜索态使用后端 total。
   if (!kw) return list.value.length < onlineCount.value
   return list.value.length < total.value
 })
@@ -187,15 +195,9 @@ function onPageScroll() {
 }
 
 function onPk(目标用户名) {
-  if (pk按钮全局禁用.value) return
+  if (!canPkUser(目标用户名)) return
   bannerMsg.value = ''
-
-  const sent = emitPkChallenge(目标用户名)
-  if (!sent) {
-    bannerMsg.value = '连接已断开'
-    bannerTone.value = 'error'
-    return
-  }
+  store.challenge(目标用户名)
   refreshPkBattleState()
 }
 
@@ -227,7 +229,7 @@ watch(
   }
 )
 
-watch(pendingPkTarget, () => {
+watch(() => store.phase, () => {
   if (connectionStatus.value === 'online') refreshPkBattleState()
 })
 

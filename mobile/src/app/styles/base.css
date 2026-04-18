@@ -79,6 +79,9 @@ textarea {
   border: 1px solid var(--border);
   background: #121a26;
   color: var(--text);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
 textarea {

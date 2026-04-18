@@ -30,3 +30,10 @@ export function getStoredCredentials() {
   const 密码 = localStorage.getItem(K.密码) || ''
   return { 用户名, 密码 }
 }
+
+/** 清除所有认证凭证（用于被踢出登录） */
+export function clearAllAuth() {
+  localStorage.removeItem(K.token)
+  localStorage.removeItem(K.用户名)
+  localStorage.removeItem(K.密码)
+}

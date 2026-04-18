@@ -16,6 +16,7 @@ function rowToUser(row) {
     配置已认证: row.配置已认证 === 1,
     创建时间: row.创建时间, 
     最近登录时间: row.最近登录时间 || null,
+    token_version: row.token_version ?? 0,
   }
 }
 
@@ -54,6 +55,13 @@ export function updateUserLastLogin(idStr, date = new Date()) {
   const id = parseId(idStr)
   if (id == null) return
   getDb().prepare('UPDATE users SET 最近登录时间 = ? WHERE id = ?').run(date.toISOString(), id)
+}
+
+export function bumpUserTokenVersion(idStr) {
+  const id = parseId(idStr)
+  if (id == null) return
+  getDb().prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(id)
+  return findUserById(idStr)
 }
 
 export function updateUserConfig(idStr, 配置,配置已认证 = true) {

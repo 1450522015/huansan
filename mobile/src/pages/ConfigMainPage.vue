@@ -171,6 +171,7 @@
 
     <div class="card card-tight">
       <h3>天赋</h3>
+      <div v-if="重复天赋.length" class="dup-warning">天赋重复：{{ 重复天赋.join('、') }}</div>
       <div v-for="(t, i) in 当前.天赋" :key="'tf' + i" class="field-h talent-line">
         <select
           v-model="t.名称"
@@ -178,7 +179,7 @@
           :title="t.名称 && 天赋说明[t.名称] ? 天赋说明[t.名称] : ''"
         >
           <option :value="null">（空）</option>
-          <option v-for="name in 天赋名称列表" :key="name" :value="name">{{ name }}</option>
+          <option v-for="name in 天赋可选列表(i)" :key="name" :value="name">{{ name }}</option>
         </select>
         <label class="shrink-lab wide-lab">等级</label>
         <input
@@ -386,6 +387,22 @@ function goBack() {
 }
 
 const 当前 = computed(() => 配置.主将)
+
+const 重复天赋 = computed(() => {
+  const 名称列表 = (当前.value?.天赋 || []).map(t => t.名称).filter(Boolean)
+  const 重复 = []
+  for (const 名 of 名称列表) {
+    if (名称列表.filter(n => n === 名).length > 1 && !重复.includes(名)) {
+      重复.push(名)
+    }
+  }
+  return 重复
+})
+
+function 天赋可选列表(i) {
+  const 已选 = (当前.value?.天赋 || []).map((t, idx) => idx === i ? null : t.名称).filter(Boolean)
+  return 天赋名称列表.filter(name => !已选.includes(name))
+}
 
 const 等级显示 = computed(() => Math.min(160, Math.max(1, Number(当前.value.等级) || 1)))
 const 空闲显示 = computed(() => 空闲点(当前.value.等级, 当前.value.属性分配))
@@ -607,9 +624,15 @@ function applyImport() {
   margin: 0 0 8px;
   font-size: 15px;
 }
+.dup-warning {
+  color: #f59e0b;
+  font-size: 12px;
+  margin: -4px 0 8px;
+}
 .field-h {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
@@ -621,54 +644,62 @@ function applyImport() {
   font-size: 12px;
   color: var(--muted);
 }
+.field-h .ctl,
+.field-h select,
+.field-h input[type='number'],
+.field-h input[type='text'] {
+  width: max-content;
+}
 .field-h .ctl {
   flex: 0 1 auto;
-  width: auto;
+  width: max-content;
   max-width: min(100%, 18rem);
   margin-bottom: 0;
 }
 .ctl-d3 {
   flex: 0 0 auto !important;
-  width: 2.65rem;
-  min-width: 2.65rem;
-  max-width: min(100%, 4rem) !important;
-  padding-left: 4px;
-  padding-right: 4px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .ctl-d2 {
   flex: 0 0 auto !important;
-  width: 2.1rem;
-  min-width: 2.1rem;
-  max-width: min(100%, 3.2rem) !important;
-  padding-left: 3px;
-  padding-right: 3px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .ctl-d5 {
   flex: 0 0 auto !important;
-  width: 4.1rem;
-  min-width: 4.1rem;
-  max-width: min(100%, 5.5rem) !important;
-  padding-left: 4px;
-  padding-right: 4px;
+  width: max-content;
+  min-width: 2.5rem;
+  padding: 6px 8px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .ctl-z {
   flex: 0 0 auto !important;
-  width: auto;
-  min-width: 3.2em;
-  max-width: 5.25rem !important;
-  padding: 6px 6px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 .ctl-fit {
   flex: 0 1 auto !important;
-  width: auto;
-  min-width: 5.5rem;
+  width: max-content;
+  min-width: 2rem;
   max-width: min(100%, 18rem) !important;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 .lvl-row {
   margin-bottom: 0;
@@ -754,12 +785,10 @@ function applyImport() {
 }
 .career-sel-tiny {
   flex: 0 0 auto;
-  width: auto;
-  min-width: 4.28em;
-  max-width: 5.85em;
+  width: max-content;
+  min-width: 2rem;
   font-size: 12px;
-  padding: 6px 4px;
-  box-sizing: border-box;
+  padding: 6px 8px;
 }
 .ctl-z-nolab {
   margin-bottom: 0;
@@ -902,35 +931,30 @@ function applyImport() {
 }
 .gem-sel {
   flex: 0 1 auto;
-  width: 3.74rem !important;
-  min-width: 3.74rem !important;
-  max-width: 3.74rem !important;
-  font-size: 11px;
-  padding: 6px 14px 6px 5px;
+  width: max-content;
+  min-width: 2rem;
+  font-size: 12px;
+  padding: 6px 8px;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 7px) calc(50% - 1px),
-    calc(100% - 4px) calc(50% - 1px);
-  background-size: 4px 4px, 4px 4px;
-  background-repeat: no-repeat;
 }
 .gem-num {
   flex: 0 0 auto;
-  width: 3.45rem;
-  min-width: 3.45rem;
-  max-width: 3.45rem;
-  padding: 6px 3px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .talent-line {
   flex-wrap: wrap;
 }
 .talent-line .ctl {
   max-width: min(100%, 14rem);
+  text-align: center;
 }
 .shrink-lab {
   flex: 0 0 auto;
@@ -950,7 +974,13 @@ function applyImport() {
 }
 .tal-lv {
   flex: 0 0 auto;
-  padding: 6px 4px;
+  width: max-content;
+  min-width: 2rem;
+  padding: 6px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .skill-row-h {
   display: flex;
@@ -966,15 +996,20 @@ function applyImport() {
   margin: 0;
 }
 .sk-tier {
-  font-size: 10px;
-  padding: 6px 4px;
-  width: 6.6em;
-  min-width: 6.6em;
-  max-width: 6.6em !important;
+  font-size: 12px;
+  padding: 6px 8px;
+  width: max-content;
+  min-width: 2rem;
 }
 .sk-pro {
   flex: 0 0 auto;
-  padding: 6px 4px;
+  width: max-content;
+  min-width: 2.5rem;
+  padding: 6px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  field-sizing: content;
 }
 .skill-effect {
   flex: 1 1 auto;

@@ -95,6 +95,7 @@
                 <button type="button" class="btn-action btn-action-copy" :disabled="copyingId === row.id" @click="onCopyConfig(row)">
                   {{ copyingId === row.id ? '复制中…' : '复制配置' }}
                 </button>
+                <button type="button" class="btn-action btn-action-copy" @click="openImport(row)">导入配置</button>
               </td>
             </tr>
           </tbody>
@@ -149,6 +150,29 @@
         </div>
       </div>
     </div>
+
+    <div v-if="impUser" class="modal-backdrop" @click.self="closeImport">
+      <div class="modal modal-refine" role="dialog" aria-modal="true" aria-labelledby="imp-title">
+        <div class="modal-head">
+          <div class="avatar" aria-hidden="true">{{ impUser.用户名?.slice(0, 1) }}</div>
+          <div>
+            <h3 id="imp-title" class="modal-title">导入配置</h3>
+            <p class="modal-user">{{ impUser.用户名 }}</p>
+          </div>
+        </div>
+        <p v-if="impError" class="msg-error">{{ impError }}</p>
+        <div class="modal-field">
+          <label for="imp-json">配置 JSON</label>
+          <textarea id="imp-json" v-model="impText" rows="8" class="inp imp-ta" placeholder="粘贴完整配置 JSON"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost btn-pad" @click="closeImport">取消</button>
+          <button type="button" class="btn btn-primary btn-pad" :disabled="impLoading" @click="submitImport">
+            {{ impLoading ? '导入中…' : '导入' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -171,6 +195,11 @@ const newPwd2 = ref('')
 const pwdError = ref('')
 const pwdLoading = ref(false)
 const copyingId = ref(null)
+
+const impUser = ref(null)
+const impText = ref('')
+const impError = ref('')
+const impLoading = ref(false)
 
 const pwdAvatar = computed(() => {
   const u = pwdUser.value?.用户名
@@ -310,6 +339,34 @@ async function onCopyConfig(row) {
     error.value = e?.response?.data?.错误 || '复制配置失败'
   } finally {
     setTimeout(() => { copyingId.value = null }, 600)
+  }
+}
+
+function openImport(row) {
+  impUser.value = row
+  impText.value = ''
+  impError.value = ''
+}
+
+function closeImport() {
+  impUser.value = null
+  impText.value = ''
+  impError.value = ''
+}
+
+async function submitImport() {
+  impLoading.value = true
+  impError.value = ''
+  try {
+    const 配置 = JSON.parse(impText.value)
+    await http.post(`/api/admin/users/${impUser.value.id}/config/import`, { 配置 })
+    closeImport()
+    error.value = `已导入 ${impUser.value?.用户名 || ''} 的配置`
+    await load()
+  } catch (e) {
+    impError.value = e?.response?.data?.错误 || '导入失败，请检查 JSON 格式'
+  } finally {
+    impLoading.value = false
   }
 }
 

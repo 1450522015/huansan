@@ -6,7 +6,7 @@
 
 > **与代码的关系**：玩法表、装备名、分段数值等 **以本文档为规格说明**；实现上同步维护在仓库根目录 [`common/gameCatalog.js`](../../common/gameCatalog.js) 与 [`common/attrCalculator.js`](../../common/attrCalculator.js)（供 Node 与 Mobile 引用，避免双份逻辑）。若规格变更，应 **先改文档再改代码**，或至少在 PR 中注明二者已对齐。
 
-> **文件命名**：下表 **01–20** 专题文档采用 **`NN-english-slug.md`（全 ASCII）**，便于跨平台路径、全文检索与自动化；**标题与正文仍为中文**。
+> **文件命名**：下表 **01–22** 专题文档采用 **`NN-english-slug.md`（全 ASCII）**，便于跨平台路径、全文检索与自动化；**标题与正文仍为中文**。
 
 ---
 
@@ -34,6 +34,8 @@
 | 18 | [18-main-gear.md](./18-main-gear.md) | 主将六部位装备与宝石属性列表（规格） |
 | 19 | [19-talents.md](./19-talents.md) | 天赋槽规则、效果说明与分段数值表（规格） |
 | 20 | [20-battle-actions.md](./20-battle-actions.md) | 战局可选操作、物品、Socket 回合同步与 canonical 单位 key |
+| 21 | [21-battle-architecture.md](./21-battle-architecture.md) | 战局后端分层、统一编排层、回合主链路与重启销毁策略 |
+| 22 | [22-battle-round-gate-and-events.md](./22-battle-round-gate-and-events.md) | 回合门与回合体、事件只追加、战况累计与 `round-result` 原子边界 |
 
 ---
 

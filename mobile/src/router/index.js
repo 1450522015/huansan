@@ -11,6 +11,7 @@ import ConfigDeputyPage from '@/pages/ConfigDeputyPage.vue'
 import HallPage from '@/pages/HallPage.vue'
 import BattlePage from '@/pages/BattlePage.vue'
 import ChannelPage from '@/pages/ChannelPage.vue'
+import AiPage from '@/pages/AiPage.vue'
 import MorePage from '@/pages/MorePage.vue'
 
 function isPublicRoute(to) {
@@ -35,6 +36,7 @@ const router = createRouter({
         { path: 'hall', name: 'hall', component: HallPage, meta: { requiresAuth: true } },
         { path: 'battle', name: 'battle', component: BattlePage, meta: { requiresAuth: true } },
         { path: 'channel', name: 'channel', component: ChannelPage, meta: { requiresAuth: true } },
+        { path: 'ai', name: 'ai', component: AiPage, meta: { requiresAuth: true } },
         { path: 'config/main', name: 'config-main', component: ConfigMainPage, meta: { requiresAuth: true } },
         {
           path: 'config/deputy',

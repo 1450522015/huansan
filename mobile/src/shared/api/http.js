@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getStoredCredentials } from '@/shared/auth/storage.js'
+import { getStoredCredentials, clearAllAuth } from '@/shared/auth/storage.js'
 
 const baseURL =
   typeof window !== 'undefined' && window.__BACKEND_URL__ ? window.__BACKEND_URL__ : ''
@@ -34,8 +34,25 @@ http.interceptors.response.use(
       return Promise.reject(err)
     }
 
+    const msg = err.response?.data?.错误 || ''
+    const kickedOut = msg === '已在其他设备登录'
+
     localStorage.removeItem('huansan_token')
     const { 用户名, 密码 } = getStoredCredentials()
+
+    // 被踢出（其他设备登录），清除所有凭证，跳登录页
+    if (kickedOut) {
+      clearAllAuth()
+      const h = typeof window !== 'undefined' ? window.location.hash || '' : ''
+      if (!h.startsWith('#/login')) {
+        const cur = h.startsWith('#') ? h.slice(1).split('?')[0] || '/' : '/'
+        const q = cur !== '/' && cur !== '/login' ? `?redirect=${encodeURIComponent(cur)}` : ''
+        window.location.hash = `#/login${q}`
+      }
+      return Promise.reject(err)
+    }
+
+    // 无缓存凭据，直接跳登录页
     if (!用户名 || !密码) {
       const h = typeof window !== 'undefined' ? window.location.hash || '' : ''
       if (!h.startsWith('#/login')) {
@@ -46,6 +63,7 @@ http.interceptors.response.use(
       return Promise.reject(err)
     }
 
+    // 尝试自动重登录
     try {
       const { data } = await axios.post(`${baseURL}/api/login`, { 用户名, 密码 }, { timeout: 30000 })
       if (data?.token) {

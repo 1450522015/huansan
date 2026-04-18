@@ -1,12 +1,20 @@
 /**
- * 在线用户映射：userId -> { socketId, 用户名 }
+ * 在线用户映射：userId -> { socketId, 用户名, socket }
  * 由 Socket.IO connection / disconnect 事件维护
+ * 支持同一用户多设备（多 socket）同时在线
  */
 
 const onlineMap = new Map()
 
-export function addOnline(userId, socketId, 用户名) {
-  onlineMap.set(String(userId), { socketId, 用户名 })
+export function addOnline(userId, socketId, 用户名, socketRef) {
+  const key = String(userId)
+  if (!onlineMap.has(key)) {
+    onlineMap.set(key, { socketId, 用户名, socket: socketRef })
+  } else {
+    // 多设备：更新为最新 socket
+    const old = onlineMap.get(key)
+    onlineMap.set(key, { socketId, 用户名, socket: socketRef, oldSocketId: old.socketId, oldSocket: old.socket })
+  }
 }
 
 export function removeOnline(userId) {

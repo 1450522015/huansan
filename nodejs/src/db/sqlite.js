@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3'
 import { env } from '../config/env.js'
+import { ensureAiOpponentsTable } from '../repositories/aiOpponentRepo.js'
 
 let dbInstance = null
 
@@ -109,6 +110,42 @@ function migrateBattlesSchemaV5(db) {
   console.log('[sqlite] migrated battle_rounds: 战斗过程')
 }
 
+/** 战局调试/战况文本系统：按回合累计的 JSON 字符串数组 */
+function migrateBattlesSchemaV6(db) {
+  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='battles'`).get()
+  if (!row?.sql) return
+  const sql = String(row.sql)
+  if (sql.includes('战况文本系统累计')) return
+  db.exec(`ALTER TABLE battles ADD COLUMN 战况文本系统累计 TEXT NOT NULL DEFAULT '[]'`)
+  console.log('[sqlite] migrated battles: 战况文本系统累计')
+}
+
+/** 每回合结算后用户可见战况（与 round-result.战况文本用户 同源，供重连拉日志） */
+function migrateBattlesSchemaV7(db) {
+  const row = db.prepare(`PRAGMA table_info(battle_rounds)`).all()
+  if (!Array.isArray(row) || !row.length) return
+  if (row.some((r) => r.name === '战况文本用户')) return
+  db.exec(`ALTER TABLE battle_rounds ADD COLUMN 战况文本用户 TEXT NOT NULL DEFAULT '[]'`)
+  console.log('[sqlite] migrated battle_rounds: 战况文本用户')
+}
+
+/** 保存完整回合结果 JSON，供 admin 调试复制使用 */
+function migrateBattleRoundsV8(db) {
+  const row = db.prepare(`PRAGMA table_info(battle_rounds)`).all()
+  if (!Array.isArray(row) || !row.length) return
+  if (row.some((r) => r.name === '完整结果')) return
+  db.exec(`ALTER TABLE battle_rounds ADD COLUMN 完整结果 TEXT`)
+  console.log('[sqlite] migrated battle_rounds: 完整结果')
+}
+
+function migrateUsersTokenVersion(db) {
+  const row = db.prepare(`PRAGMA table_info(users)`).all()
+  const hasColumn = row.some(r => r.name === 'token_version')
+  if (hasColumn) return
+  db.exec(`ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0`)
+  console.log('[sqlite] migrated users: token_version')
+}
+
 function migrateBattlesSchemaV3(db) {
   const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='battle_rounds'`).get()
   if (row) return
@@ -142,6 +179,14 @@ export function openSqlite() {
   db.pragma('busy_timeout = 8000')
   db.pragma('foreign_keys = ON')
   initSchema(db)
+  migrateBattlesSchemaV3(db)
+  migrateBattlesSchemaV4(db)
+  migrateBattlesSchemaV5(db)
+  migrateBattlesSchemaV6(db)
+  migrateBattlesSchemaV7(db)
+  migrateBattleRoundsV8(db)
+  migrateUsersTokenVersion(db)
+  ensureAiOpponentsTable(db)
   dbInstance = db
   console.log(`[sqlite] ${filePath} (WAL)`)
   return dbInstance

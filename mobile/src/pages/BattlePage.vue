@@ -38,7 +38,7 @@
                 </div>
                 <div class="meta-line" :class="{ 'meta-masked': isUnitInfoHidden(unit) }">
                   <span class="job-tag">{{ isUnitInfoHidden(unit) ? '·' : unit.职业 }}</span>
-                  <span class="speed-rank">{{ isUnitInfoHidden(unit) ? '·' : `速${unit.速度排名}` }}</span>
+                  <span class="speed-rank">{{ isUnitInfoHidden(unit) || unit.速度排名 >= 999 ? '·' : `速${unit.速度排名}` }}</span>
                 </div>
                 <div class="buff-line">{{ displayUnitBuff(unit) }}</div>
               </div>
@@ -146,7 +146,7 @@
                 </div>
                 <div class="meta-line" :class="{ 'meta-masked': isUnitInfoHidden(unit) }">
                   <span class="job-tag">{{ isUnitInfoHidden(unit) ? '·' : unit.职业 }}</span>
-                  <span class="speed-rank">{{ isUnitInfoHidden(unit) ? '·' : `速${unit.速度排名}` }}</span>
+                  <span class="speed-rank">{{ isUnitInfoHidden(unit) || unit.速度排名 >= 999 ? '·' : `速${unit.速度排名}` }}</span>
                 </div>
                 <div class="buff-line">{{ displayUnitBuff(unit) }}</div>
               </div>
@@ -170,7 +170,7 @@
             {{ fleeing ? '逃跑中…' : '逃跑' }}
           </button>
           <button class="toolbar-btn" type="button" :disabled="!战局中" @click="toggleBattleSpeed">
-            速度×{{ battleSpeed }}
+            {{ battleSpeed === 0 ? '无动画' : `速度×${battleSpeed}` }}
           </button>
         </div>
         <div class="chat-panel">
@@ -196,7 +196,7 @@
               @click="copyDebugInfo"
             >复制调试信息</button>
           </div>
-          <div class="chat-box">
+          <div ref="chatBoxRef" class="chat-box">
             <div v-if="chatTab === 'system'" class="tab-pane system-pane">
               <div v-for="(msg, i) in roundSystemLog" :key="'sys-' + i" class="chat-line">
                 {{ msg }}
@@ -249,6 +249,18 @@ import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watc
 import { useSocketClient } from '@/shared/socket/socketClient.js'
 import { http } from '@/shared/api/http.js'
 import { 当前角色分类, 主将战斗职业轴, format副将显示名 } from '@/shared/config/defaults.js'
+import { useBattleStore } from '@/stores/battleStore.js'
+import {
+  serverUnitKeyToViewerKey as mapServerKeyToViewer,
+  viewerSelfKeyToServerKey as mapViewerSelfToServer,
+  deputyBaseName,
+} from '@/features/battle/battleViewAdapter.js'
+import { buildActionList, fillAutoAttackActions } from '@/features/battle/useBattleActionPlanner.js'
+import {
+  buildUserBattleTextLines,
+  buildUserBattleTextLinePlan,
+  filterUserBattleDisplayLines,
+} from '@common/battleUserBattleText.js'
 
 const { currentOpponent, setCurrentOpponent, connectionStatus,
   onRoundStarted, offRoundStarted,
@@ -257,7 +269,10 @@ const { currentOpponent, setCurrentOpponent, connectionStatus,
   onBattleError, offBattleError,
   emitBattleRoundStart, emitBattleActionsSubmit,
   emitBattleChat, onBattleChat, offBattleChat,
+  emitBattleFlee, onBattleFled, offBattleFled,
 } = useSocketClient()
+
+const battleStore = useBattleStore()
 
 const 当前用户名 = computed(() => localStorage.getItem('huansan_用户名') || '')
 const 对手用户名 = ref('')
@@ -282,10 +297,16 @@ const battleEndMessage = ref('')
 const battleEndIWon = ref(false)
 const pendingBattleEndPopup = ref(false)
 const dismissedBattleId = ref('')
+/** 标记当前会话是否经历过 "战局中" 状态，区分「本局战中变结束」和「入场时已结束」；重连/重新激活时重置 */
+let sessionBattleId = ''
+/** 记录进入战局页时已知的战局ID（含从路由传参获得的），用于区分「重连回到同一局」与「从未参与过」 */
+let expectedBattleId = ''
+const wasBattleActiveThisSession = ref(false)
 const currentActionMode = ref('')
 const bannerText = ref('')
 const bannerTone = ref('')
 const roundSystemLog = ref([])
+const chatBoxRef = ref(null)
 const chatMessages = ref([])
 const chatInput = ref('')
 const chatTab = ref('system')
@@ -294,7 +315,6 @@ const lastRoundResult = ref(null)
 /** 避免 `round-result` 与 `actions-submitted` 携带相同 payload 时重复结算 UI */
 const lastAppliedRoundResultNum = ref(-1)
 
-const autoMode = ref(false)
 /** 开关：战局中持续有效；开启后每回合出招阶段自动全员攻对方最快单位 */
 const autoAttackEnabled = ref(false)
 const actionsMap = ref({})
@@ -381,6 +401,8 @@ const 当前单位显示名 = computed(() => {
   return `${当前用户名.value}-${unit.名称}`
 })
 const 战局状态文案 = computed(() => {
+  const note = String(lastBattleSnapshot.value?.战局?.备注 || '')
+  if (note.includes('服务器重启')) return '战局已结束（服务器重启）'
   if (战局状态.value === '失去连接') return '战局已结束（失去连接）'
   if (战局状态.value === '已结束') return '战局已结束'
   return '未在战局中'
@@ -393,15 +415,6 @@ function barPct(cur, max) {
   return Math.min(100, (c / m) * 100)
 }
 
-/** 去掉无双/真前缀，与配置「人物」字段比对 */
-function deputyBaseName(显示) {
-  let s = String(显示 || '').trim()
-  if (!s) return ''
-  s = s.replace(/^无双-/, '')
-  s = s.replace(/^\(真\)/, '')
-  return s
-}
-
 function unitHpBarWidthPct(unit, kind = 'hp') {
   if (isUnitInfoHidden(unit)) return 0
   return kind === 'mp' ? barPct(unit.curMp, unit.maxMp) : barPct(unit.curHp, unit.maxHp)
@@ -412,29 +425,12 @@ function unitHpMpText(unit, kind) {
   return kind === 'mp' ? `${unit.curMp} / ${unit.maxMp}` : `${unit.curHp} / ${unit.maxHp}`
 }
 
-/** 服务端战局单位 key：发起方 = self、目标方 = enemy；与界面「当前用户 = self」不一致时互换 */
-function swapBattleSideKey(key) {
-  if (!key) return key
-  if (key.startsWith('self:')) return key.replace(/^self:/, 'enemy:')
-  if (key.startsWith('enemy:')) return key.replace(/^enemy:/, 'self:')
-  return key
-}
-
-function viewerIsBattleStarter(extra) {
-  const starter = extra?.发起用户名 || lastBattleSnapshot.value?.战局?.发起用户名
-  return !!(starter && starter === 当前用户名.value)
-}
-
-/** 将服务端 canonical key 转为当前客户端队伍上的 key（selfTeam / opponentTeam） */
 function serverUnitKeyToViewerKey(serverKey, extra) {
-  if (!serverKey) return serverKey
-  return viewerIsBattleStarter(extra) ? serverKey : swapBattleSideKey(serverKey)
+  return mapServerKeyToViewer(serverKey, 当前用户名.value, extra, lastBattleSnapshot.value)
 }
 
-/** 当前客户端 self 侧 key → 服务端 canonical key（读 data.units 用） */
 function viewerSelfKeyToServerKey(viewerKey, extra) {
-  if (!viewerKey) return viewerKey
-  return viewerIsBattleStarter(extra) ? viewerKey : swapBattleSideKey(viewerKey)
+  return mapViewerSelfToServer(viewerKey, 当前用户名.value, extra, lastBattleSnapshot.value)
 }
 
 function 轴简称(配置单位) {
@@ -606,6 +602,8 @@ function applyUnitStateRow(us, extra, opts) {
     u.名称 = (无双 > 0 && vk && vk.includes('副将')) ? `无双-${baseName}` : baseName
     u.显示名 = u.名称
     u.无双剩余回合 = 无双
+    if (Number.isFinite(Number(us.最大气血))) u.maxHp = Math.max(1, Math.round(Number(us.最大气血)))
+    if (Number.isFinite(Number(us.最大精力))) u.maxMp = Math.max(1, Math.round(Number(us.最大精力)))
     u.curHp = Math.max(0, Math.round(us.气血 ?? u.curHp))
     u.curMp = Math.max(0, Math.round(us.精力 ?? u.curMp))
     if (updateRank && Number.isFinite(Number(us.排名))) {
@@ -640,26 +638,6 @@ function getSelfUnitConfigByKey(key) {
   return null
 }
 
-function buildSpeedRankMap(selfData, enemyData) {
-  const rows = []
-  const pushRow = (tag, key, attr) => {
-    if (!attr) return
-    rows.push({ id: `${tag}:${key}`, 速度: Number(attr.速度) || 0 })
-  }
-  pushRow('self', '主将', selfData?.属性?.主将)
-  pushRow('self', '副将1', selfData?.属性?.副将1)
-  pushRow('self', '副将2', selfData?.属性?.副将2)
-  pushRow('self', '副将3', selfData?.属性?.副将3)
-  pushRow('enemy', '主将', enemyData?.属性?.主将)
-  pushRow('enemy', '副将1', enemyData?.属性?.副将1)
-  pushRow('enemy', '副将2', enemyData?.属性?.副将2)
-  pushRow('enemy', '副将3', enemyData?.属性?.副将3)
-  rows.sort((a, b) => b.速度 - a.速度)
-  const map = new Map()
-  rows.forEach((r, idx) => map.set(r.id, idx + 1))
-  return map
-}
-
 function toTeam(side, tag, rankMap) {
   const cfg = side?.配置
   const attr = side?.属性
@@ -671,16 +649,17 @@ function toTeam(side, tag, rankMap) {
   const 副将配置3 = 副将列表[出战顺序[2]]
   return [
     { type: 'mount', 坐骑名: cfg?.主将?.坐骑?.种类 || '无坐骑' },
-    mkUnit(attr.主将, cfg.主将, rankMap.get(`${tag}:主将`) || 0, tag === 'self' ? (当前用户名.value || '我方主将') : (side?.用户名 || '敌方主将'), `${tag}:主将`),
-    mkUnit(attr.副将1, 副将配置1, rankMap.get(`${tag}:副将1`) || 0, format副将显示名(副将配置1?.人物, 副将配置1?.真) || '副将1', `${tag}:副将1`),
-    mkUnit(attr.副将2, 副将配置2, rankMap.get(`${tag}:副将2`) || 0, format副将显示名(副将配置2?.人物, 副将配置2?.真) || '副将2', `${tag}:副将2`),
-    mkUnit(attr.副将3, 副将配置3, rankMap.get(`${tag}:副将3`) || 0, format副将显示名(副将配置3?.人物, 副将配置3?.真) || '副将3', `${tag}:副将3`),
+    mkUnit(attr.主将, cfg.主将, rankMap?.get(`${tag}:主将`) || 0, tag === 'self' ? (当前用户名.value || '我方主将') : (side?.用户名 || '敌方主将'), `${tag}:主将`),
+    mkUnit(attr.副将1, 副将配置1, rankMap?.get(`${tag}:副将1`) || 0, format副将显示名(副将配置1?.人物, 副将配置1?.真) || '副将1', `${tag}:副将1`),
+    mkUnit(attr.副将2, 副将配置2, rankMap?.get(`${tag}:副将2`) || 0, format副将显示名(副将配置2?.人物, 副将配置2?.真) || '副将2', `${tag}:副将2`),
+    mkUnit(attr.副将3, 副将配置3, rankMap?.get(`${tag}:副将3`) || 0, format副将显示名(副将配置3?.人物, 副将配置3?.真) || '副将3', `${tag}:副将3`),
   ]
 }
 
 function clearBattle() {
   stopCountdown()
   战局状态.value = ''
+  wasBattleActiveThisSession.value = false
   round.value = 0
   selfTeam.value = []
   opponentTeam.value = []
@@ -699,7 +678,6 @@ function clearBattle() {
   currentActionMode.value = ''
   bannerText.value = ''
   chatMessages.value = []
-  autoMode.value = false
   autoAttackEnabled.value = false
   actionsMap.value = {}
   waitingOpponentAfterSubmit.value = false
@@ -707,6 +685,8 @@ function clearBattle() {
   animActorKey.value = ''
   animTargetKey.value = ''
   animExtraTargetKeys.value = new Set()
+  sessionBattleId = ''
+  expectedBattleId = ''
   animMountHealKey.value = ''
   battleSpeed.value = 1
   重连后跳过动画.value = false
@@ -721,6 +701,13 @@ function setBanner(text, tone = '') {
   bannerTone.value = tone
 }
 
+function scrollBattleSystemLogToBottom() {
+  nextTick(() => {
+    const el = chatBoxRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+
 function appendSystemLine(line) {
   if (line == null || line === '') return
   roundSystemLog.value = [...roundSystemLog.value, String(line)]
@@ -728,6 +715,7 @@ function appendSystemLine(line) {
   if (roundSystemLog.value.length > max) {
     roundSystemLog.value = roundSystemLog.value.slice(-max)
   }
+  scrollBattleSystemLogToBottom()
 }
 
 function sendChatMessage() {
@@ -744,10 +732,30 @@ function handleBattleChat(payload) {
   if (chatMessages.value.length > max) {
     chatMessages.value = chatMessages.value.slice(-max)
   }
+  scrollBattleSystemLogToBottom()
+}
+
+function handleBattleFled(data) {
+  const 逃跑方 = data?.逃跑方 || '对方'
+  const 原因 = data?.原因 || `${逃跑方}逃跑了`
+  战局状态.value = '已结束'
+  autoAttackEnabled.value = false
+  battleEndIWon.value = true
+  battleEndMessage.value = 原因
+  battleStore.onBattleEnd()
+  sessionBattleId = ''
+  expectedBattleId = ''
+  if (animating.value) {
+    pendingBattleEndPopup.value = true
+  } else {
+    pendingBattleEndPopup.value = false
+    nextTick(() => { showBattleEndPopup.value = true })
+  }
 }
 
 function setRoundHeader(n) {
   roundSystemLog.value = [`—— 第 ${n} 回合 ——`]
+  scrollBattleSystemLogToBottom()
 }
 
 /** 与后端 `battleRepo.getBattleRoundRowKeyForLog` 一致；旧接口无 `日志回合键` 时本地推算 */
@@ -765,9 +773,17 @@ function mergeServerRoundLog(回合信息, 战局) {
   if (!回合信息 || 回合信息.回合数 == null || !战局) return
   const expected = clientLogRoundKey(战局)
   if (expected == null || Number(回合信息.回合数) !== expected) return
-  const logs = Array.isArray(回合信息.战斗日志) ? 回合信息.战斗日志.filter(Boolean) : []
+  const userLog = filterUserBattleDisplayLines(
+    Array.isArray(回合信息.战况文本用户) ? 回合信息.战况文本用户.filter(Boolean) : [],
+  )
+  const logs = userLog.length
+    ? userLog
+    : Array.isArray(回合信息.战斗日志)
+      ? 回合信息.战斗日志.filter(Boolean)
+      : []
   if (!logs.length) return
   roundSystemLog.value = [`—— 第 ${回合信息.回合数} 回合 ——`, ...logs]
+  scrollBattleSystemLogToBottom()
 }
 
 function startCountdown(serverTimestamp) {
@@ -826,7 +842,6 @@ function handleRoundStarted(data) {
   }
   round.value = data.回合数 || 1
   出招阶段.value = true
-  autoMode.value = false
   actionsMap.value = {}
   showItemPopup.value = false
   showSummonPopup.value = false
@@ -836,6 +851,32 @@ function handleRoundStarted(data) {
   pendingAction.value = null
   selectedItem.value = null
   selectedSkill.value = null
+
+  if (Array.isArray(data.units)) {
+    for (const serverUnit of data.units) {
+      const viewerKey = serverUnitKeyToViewerKey(serverUnit.key, data)
+      if (!viewerKey) continue
+      const allUnits = [...selfTeam.value, ...opponentTeam.value]
+      const unit = allUnits.find(u => u.key === viewerKey)
+      if (unit && unit.type === 'unit') {
+        if (Number.isFinite(Number(serverUnit.排名))) {
+          unit.速度排名 = Math.max(1, Math.round(Number(serverUnit.排名)))
+        }
+        if (Number.isFinite(Number(serverUnit.最大气血))) {
+          unit.maxHp = Math.max(1, Math.round(Number(serverUnit.最大气血)))
+        }
+        if (Number.isFinite(Number(serverUnit.最大精力))) {
+          unit.maxMp = Math.max(1, Math.round(Number(serverUnit.最大精力)))
+        }
+        if (Number.isFinite(Number(serverUnit.气血))) {
+          unit.curHp = Math.max(0, Math.round(Number(serverUnit.气血)))
+        }
+        if (Number.isFinite(Number(serverUnit.精力))) {
+          unit.curMp = Math.max(0, Math.round(Number(serverUnit.精力)))
+        }
+      }
+    }
+  }
 
   const selfUnitOrder = ['self:主将', 'self:副将1', 'self:副将2', 'self:副将3']
   const firstAliveKey = selfUnitOrder.find(key => {
@@ -856,6 +897,12 @@ function handleRoundStarted(data) {
   if (autoAttackEnabled.value) {
     void nextTick(() => runAutoAttackFillAndSubmit())
   }
+  if (lastBattleSnapshot.value?.战局 && Array.isArray(data.战况文本系统累计)) {
+    lastBattleSnapshot.value = {
+      ...lastBattleSnapshot.value,
+      战局: { ...lastBattleSnapshot.value.战局, 战况文本系统累计: data.战况文本系统累计 },
+    }
+  }
 }
 
 async function handleRoundResult(data) {
@@ -873,20 +920,54 @@ async function handleRoundResult(data) {
   }
 
   const logRn = Number.isFinite(rn) ? rn : (round.value || 1)
-  if (Array.isArray(data.战斗日志)) {
-    const lines = data.战斗日志.filter(Boolean)
-    roundSystemLog.value = lines.length
-      ? [`—— 第 ${logRn} 回合 ——`, ...lines]
-      : [`—— 第 ${logRn} 回合 ——`, '（本轮无文字战报）']
+  const steps = Array.isArray(data.战斗过程) ? data.战斗过程 : []
+  const userLines = filterUserBattleDisplayLines(
+    Array.isArray(data.战况文本用户) ? data.战况文本用户.filter(Boolean) : [],
+  )
+  const actionSynthLines = buildUserBattleTextLines(steps)
+  const userTail =
+    userLines.length > actionSynthLines.length ? userLines.slice(actionSynthLines.length) : []
+  const headerLine = `—— 第 ${logRn} 回合 ——`
+  const instantBodyLines = userLines.length
+    ? userLines
+    : actionSynthLines.length
+      ? actionSynthLines
+      : ['（本轮无文字战报）']
+  const instantRoundLog = [headerLine, ...instantBodyLines]
+  if (lastBattleSnapshot.value?.战局 && Array.isArray(data.战况文本系统)) {
+    lastBattleSnapshot.value = {
+      ...lastBattleSnapshot.value,
+      战局: { ...lastBattleSnapshot.value.战局, 战况文本系统累计: data.战况文本系统 },
+    }
   }
-  if (!重连后跳过动画.value && Array.isArray(data.战斗过程) && data.战斗过程.length) {
+
+  const shouldSyncSystemLog =
+    !重连后跳过动画.value && steps.length > 0 && battleSpeed.value !== 0
+
+  if (shouldSyncSystemLog) {
     animating.value = true
-    await 播放战斗过程动画(data.战斗过程)
+    const hasTextFromServerOrSteps = userLines.length > 0 || actionSynthLines.length > 0
+    roundSystemLog.value = hasTextFromServerOrSteps
+      ? [headerLine]
+      : [headerLine, '（本轮无文字战报）']
+    const linePlan = buildUserBattleTextLinePlan(steps)
+    await 播放战斗过程动画(steps, linePlan)
+    for (const ln of userTail) {
+      if (ln) appendSystemLine(ln)
+    }
     animating.value = false
     if (pendingBattleEndPopup.value) {
       pendingBattleEndPopup.value = false
       showBattleEndPopup.value = true
     }
+  } else {
+    roundSystemLog.value = instantRoundLog
+    scrollBattleSystemLogToBottom()
+  }
+
+  if (!shouldSyncSystemLog && battleSpeed.value === 0 && pendingBattleEndPopup.value) {
+    pendingBattleEndPopup.value = false
+    showBattleEndPopup.value = true
   }
 
   if (data.单位状态 && Array.isArray(data.单位状态)) {
@@ -914,6 +995,9 @@ async function handleRoundResult(data) {
     appendSystemLine(`战局结束：${data.原因 || '（无原因）'}；胜者：${data.胜者 || '—'}`)
     战局状态.value = '已结束'
     autoAttackEnabled.value = false
+    battleStore.onBattleEnd()
+    sessionBattleId = ''
+    expectedBattleId = ''
     showBattleEndPopup.value = true
     return
   }
@@ -932,13 +1016,30 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function 播放战斗过程动画(steps) {
+async function 播放战斗过程动画(steps, linePlan) {
+  const plan = linePlan || buildUserBattleTextLinePlan(steps)
   const waitMs = battleSpeed.value === 1 ? 2000 : battleSpeed.value === 2 ? 1000 : 500
   const extra = lastRoundResult.value || lastBattleSnapshot.value
+  let lastRevealed = -1
+  function revealThrough(endIdx) {
+    const n = steps.length
+    if (!n) return
+    const e = Math.min(Math.max(-1, endIdx), n - 1)
+    for (let k = lastRevealed + 1; k <= e; k++) {
+      for (const ln of plan[k] || []) {
+        if (ln) appendSystemLine(ln)
+      }
+    }
+    lastRevealed = e
+  }
   let i = 0
   while (i < steps.length) {
     const s = steps[i]
-    if (!s || !s.type) { i++; continue }
+    if (!s || !s.type) {
+      revealThrough(i)
+      i++
+      continue
+    }
 
     if (s.type === 'melee') {
       const actorKey = serverUnitKeyToViewerKey(s.actorKey, extra) || ''
@@ -946,6 +1047,7 @@ async function 播放战斗过程动画(steps) {
       animActorKey.value = actorKey
       animTargetKey.value = targetKey
       setBanner(s.attackKind || '攻击', 'warning')
+      revealThrough(i)
       await sleep(waitMs)
       const dmg = Number.isFinite(Number(s.damage)) ? Math.max(1, Math.round(Number(s.damage))) : 0
       if (targetKey) applyDamageByKey(targetKey, dmg, 0)
@@ -959,7 +1061,8 @@ async function 播放战斗过程动画(steps) {
       const targetKey = serverUnitKeyToViewerKey(s.targetKey, extra) || ''
       animActorKey.value = actorKey
       animTargetKey.value = targetKey
-      setBanner('反击攻击', 'warning')
+      setBanner('反震', 'warning')
+      revealThrough(i)
       await sleep(waitMs)
       const shockDmg = Number.isFinite(Number(s.damage)) ? Math.max(1, Math.round(Number(s.damage))) : 0
       if (targetKey) applyDamageByKey(targetKey, shockDmg, 0)
@@ -972,7 +1075,8 @@ async function 播放战斗过程动画(steps) {
       const actorKey = serverUnitKeyToViewerKey(s.actorKey, extra) || ''
       const targetKey = serverUnitKeyToViewerKey(s.targetKey, extra) || ''
       animTargetKey.value = targetKey
-      setBanner('反震', 'warning')
+      setBanner('反击', 'warning')
+      revealThrough(i)
       await sleep(waitMs)
       const counterDmg = Number.isFinite(Number(s.damage)) ? Math.max(1, Math.round(Number(s.damage))) : 0
       if (targetKey) applyDamageByKey(targetKey, counterDmg, 0)
@@ -986,18 +1090,28 @@ async function 播放战斗过程动画(steps) {
       animActorKey.value = actorKey
       animTargetKey.value = targetKey
       setBanner('攻击未命中', 'info')
+      revealThrough(i)
       await sleep(waitMs)
       animActorKey.value = ''
       animTargetKey.value = ''
       i++
+    } else if (s.type === 'self-cost') {
+      revealThrough(i)
+      const actorKey = serverUnitKeyToViewerKey(s.actorKey, extra) || ''
+      const hpCost = Math.max(0, Math.round(Number(s.hpCost) || 0))
+      if (hpCost > 0 && actorKey) applyDamageByKey(actorKey, hpCost, 0)
+      i++
+    } else if (s.type === 'skill-fail' || s.type === 'defend') {
+      revealThrough(i)
+      i++
     } else if (s.type === 'skill-cast' || s.type === 'skill-hit') {
       const batch = collectSkillBatch(steps, i)
-      await playMultiTargetSkill(batch, waitMs)
+      await playMultiTargetSkill(batch, waitMs, () => revealThrough(i + batch.steps.length - 1))
       i += batch.steps.length
     } else if (s.type === 'skill-control') {
       const batch = collectSkillBatch(steps, i)
       if (batch.steps.length > 1) {
-        await playMultiTargetSkill(batch, waitMs)
+        await playMultiTargetSkill(batch, waitMs, () => revealThrough(i + batch.steps.length - 1))
         i += batch.steps.length
       } else {
         const actorKey = serverUnitKeyToViewerKey(s.actorKey, extra) || ''
@@ -1006,8 +1120,12 @@ async function 播放战斗过程动画(steps) {
         animActorKey.value = actorKey
         animTargetKey.value = targetKey
         setBanner(skillName, s.success ? 'ok' : 'error')
+        revealThrough(i)
         await sleep(waitMs)
-        if (s.success && s.buffName && targetKey) addBuffTagByKey(targetKey, s.buffName)
+        if (s.success && s.buffName && targetKey) {
+          if (s.buffName === '乱' || s.buffName === '封') removeBuffTagByKey(targetKey, ['围', '乱', '封'])
+          addBuffTagByKey(targetKey, s.buffName)
+        }
         if (s.skillName === '金蝉脱壳' && s.success && targetKey) removeBuffTagByKey(targetKey, ['围', '乱', '封'])
         if (s.healAmount > 0 && targetKey) applyHealByKey(targetKey, s.healAmount, 0)
         await sleep(waitMs)
@@ -1019,6 +1137,7 @@ async function 播放战斗过程动画(steps) {
       const targetKey = serverUnitKeyToViewerKey(s.targetKey, extra) || ''
       animTargetKey.value = targetKey
       setBanner('毒发', 'error')
+      revealThrough(i)
       await sleep(waitMs)
       const poisonDmg = Number.isFinite(Number(s.damage)) ? Math.max(1, Math.round(Number(s.damage))) : 0
       if (targetKey) applyDamageByKey(targetKey, poisonDmg, 0)
@@ -1046,6 +1165,7 @@ async function 播放战斗过程动画(steps) {
         if (tk !== firstTk) animExtraTargetKeys.value.add(tk)
       }
       setBanner('爆炸', 'danger')
+      revealThrough(j - 1)
       await sleep(waitMs)
       for (const ds of detonateSteps) {
         const tk = serverUnitKeyToViewerKey(ds.targetKey, extra)
@@ -1060,6 +1180,7 @@ async function 播放战斗过程动画(steps) {
       const targetKey = serverUnitKeyToViewerKey(s.targetKey, extra) || ''
       animMountHealKey.value = targetKey
       setBanner('木牛流马', 'ok')
+      revealThrough(i)
       if (s.healType === 'hp' && targetKey) applyHealByKey(targetKey, s.amount, 0)
       else if (s.healType === 'mp' && targetKey) applyHealByKey(targetKey, 0, s.amount)
       animMountHealKey.value = ''
@@ -1085,6 +1206,7 @@ async function 播放战斗过程动画(steps) {
         else if (targetKey) animExtraTargetKeys.value.add(targetKey)
       }
       setBanner('无双开启', 'warning')
+      revealThrough(i)
       await sleep(waitMs)
       await sleep(waitMs)
       animTargetKey.value = ''
@@ -1105,11 +1227,13 @@ async function 播放战斗过程动画(steps) {
       }
       animTargetKey.value = targetKey
       setBanner('无双', 'warning')
+      revealThrough(i)
       await sleep(waitMs)
       await sleep(waitMs)
       animTargetKey.value = ''
       i++
     } else if (s.type === 'musou-end') {
+      revealThrough(i)
       const targetKey = serverUnitKeyToViewerKey(s.targetKey, extra) || ''
       const targetUnit = selfTeam.value.find(u => u.key === targetKey) || opponentTeam.value.find(u => u.key === targetKey)
       if (targetUnit && targetUnit.type === 'unit') {
@@ -1121,7 +1245,26 @@ async function 播放战斗过程动画(steps) {
         if (s.newMaxMp) targetUnit.maxMp = Math.max(1, Math.round(Number(s.newMaxMp) || targetUnit.maxMp))
       }
       i++
+    } else if (s.type === 'control-second-check' && !s.控制成功) {
+      const targetKey = serverUnitKeyToViewerKey(s.targetKey, extra) || ''
+      animTargetKey.value = targetKey
+      setBanner(`${s.buffName || '控'}挣脱`, 'info')
+      revealThrough(i)
+      if (targetKey && s.buffName) removeBuffTagByKey(targetKey, s.buffName)
+      await sleep(waitMs)
+      animTargetKey.value = ''
+      i++
+    } else if (s.type === 'buff-break') {
+      const targetKey = serverUnitKeyToViewerKey(s.targetKey, extra) || ''
+      animTargetKey.value = targetKey
+      setBanner(`${s.buffName}失效`, 'info')
+      revealThrough(i)
+      if (targetKey) removeBuffTagByKey(targetKey, s.buffName)
+      await sleep(waitMs)
+      animTargetKey.value = ''
+      i++
     } else if (s.type === 'buff-block') {
+      revealThrough(i)
       i++
     } else if (s.type === 'item') {
       const actorKey = serverUnitKeyToViewerKey(s.actorKey, extra) || ''
@@ -1129,6 +1272,7 @@ async function 播放战斗过程动画(steps) {
       animActorKey.value = actorKey
       animTargetKey.value = targetKey
       setBanner(`使用${s.itemName || '物品'}`, 'ok')
+      revealThrough(i)
       if (targetKey) {
         if (s.recoverType === '气血') applyHealByKey(targetKey, s.recover, 0)
         else if (s.recoverType === '精力') applyHealByKey(targetKey, 0, s.recover)
@@ -1144,6 +1288,7 @@ async function 播放战斗过程动画(steps) {
       animActorKey.value = actorKey
       animTargetKey.value = targetKey
       setBanner('招将', 'ok')
+      revealThrough(i)
       applySummonByStep(s, extra)
       await sleep(waitMs)
       await sleep(waitMs)
@@ -1154,12 +1299,17 @@ async function 播放战斗过程动画(steps) {
       const actorKey = serverUnitKeyToViewerKey(s.actorKey, extra) || ''
       animActorKey.value = actorKey
       setBanner('招将失败', 'error')
+      revealThrough(i)
       await sleep(waitMs)
       await sleep(waitMs)
       animActorKey.value = ''
       i++
-    } else { i++ }
+    } else {
+      revealThrough(i)
+      i++
+    }
   }
+  if (steps.length) revealThrough(steps.length - 1)
 }
 
 function collectSkillBatch(steps, startIndex) {
@@ -1172,7 +1322,7 @@ function collectSkillBatch(steps, startIndex) {
   while (j < steps.length) {
     const cur = steps[j]
     if (!cur) break
-    if ((cur.type === 'skill-hit' || cur.type === 'skill-control') && cur.actorKey === actorKey && cur.skillName === skillName) {
+    if ((cur.type === 'skill-hit' || cur.type === 'skill-control' || cur.type === 'self-cost') && cur.actorKey === actorKey && (cur.skillName === skillName || cur.type === 'self-cost')) {
       batch.push(cur)
       j++
     } else { break }
@@ -1180,7 +1330,7 @@ function collectSkillBatch(steps, startIndex) {
   return { steps: batch, skillName, castStep: first }
 }
 
-async function playMultiTargetSkill(batch, waitMs) {
+async function playMultiTargetSkill(batch, waitMs, onRevealLines) {
   const extra = lastRoundResult.value || lastBattleSnapshot.value
   const castStep = batch.castStep
   const skillName = batch.skillName
@@ -1212,22 +1362,41 @@ async function playMultiTargetSkill(batch, waitMs) {
   const hasCrit = hitSteps.some((hs) => hs.crit)
   const bannerLabel = hasCrit ? `${skillName}(暴)` : skillName
   setBanner(bannerLabel, bannerType)
+  if (typeof onRevealLines === 'function') onRevealLines()
 
   await sleep(waitMs)
   const castCost = Math.max(0, Math.round(Number(castStep?.mpCost) || 0))
   if (castCost > 0 && actorKey) applyDamageByKey(actorKey, 0, castCost)
 
   for (const hs of hitSteps) {
-    if (hs.type === 'skill-hit') {
+    if (hs.type === 'self-cost') {
+      const hpCost = Math.max(0, Math.round(Number(hs.hpCost) || 0))
+      if (hpCost > 0 && actorKey) applyDamageByKey(actorKey, hpCost, 0)
+    } else if (hs.type === 'skill-hit') {
       const tk = serverUnitKeyToViewerKey(hs.targetKey, extra)
       const dmg = Number.isFinite(Number(hs.damage)) ? Math.max(1, Math.round(Number(hs.damage))) : null
       if (dmg != null && tk) {
         applyDamageByKey(tk, dmg, hs.mpDamage)
         removeBuffTagByKey(tk, '围')
       }
+      if (hs.气血消耗 > 0 && actorKey) {
+        applyDamageByKey(actorKey, hs.气血消耗, 0)
+      }
+      if (tk) {
+        if (hs.buffName && hs.success !== false) {
+          if (hs.buffName === '乱' || hs.buffName === '封') removeBuffTagByKey(tk, ['围', '乱', '封'])
+          addBuffTagByKey(tk, hs.buffName)
+        }
+        if (hs.防御提升 != null) addBuffTagByKey(tk, '固')
+        if (hs.速度提升 != null) addBuffTagByKey(tk, '速')
+        if (hs.skillName && hs.skillName.includes('金蝉脱壳')) removeBuffTagByKey(tk, ['围', '乱', '封'])
+      }
     } else if (hs.type === 'skill-control') {
       const tk = serverUnitKeyToViewerKey(hs.targetKey, extra)
-      if (hs.success && hs.buffName && tk) addBuffTagByKey(tk, hs.buffName)
+      if (hs.success && hs.buffName && tk) {
+        if (hs.buffName === '乱' || hs.buffName === '封') removeBuffTagByKey(tk, ['围', '乱', '封'])
+        addBuffTagByKey(tk, hs.buffName)
+      }
       if (hs.skillName === '金蝉脱壳' && hs.success && tk) removeBuffTagByKey(tk, ['围', '乱', '封'])
       const healAmt = Math.max(0, Math.round(Number(hs.healAmount) || 0))
       if (healAmt > 0 && tk) {
@@ -1247,6 +1416,7 @@ function toggleBattleSpeed() {
   if (!战局中.value) return
   if (battleSpeed.value === 1) battleSpeed.value = 2
   else if (battleSpeed.value === 2) battleSpeed.value = 3
+  else if (battleSpeed.value === 3) battleSpeed.value = 0
   else battleSpeed.value = 1
 }
 
@@ -1282,27 +1452,23 @@ async function copyDebugInfo() {
       maxHp: u.maxHp,
       maxMp: u.maxMp,
     }))
+  const 战况文本系统 =
+    lastBattleSnapshot.value?.战局?.战况文本系统累计 ??
+    lastRoundResult.value?.战况文本系统 ??
+    []
+  const rr = lastRoundResult.value
   const payload = {
     生成时间: new Date().toISOString(),
-    说明: '战局调试包：含最近一次 /api/battle/current 快照、最近一次回合结算事件、以及客户端关键状态。',
+    说明: '战局调试包：含 /api/battle/current 快照、最近一次回合结算事件；战况文本系统为自开战起按回合累计（与战局.战况文本系统累计同源）。',
+    战况文本系统,
     战局与回合快照: lastBattleSnapshot.value,
-    最近回合结算事件: lastRoundResult.value,
-    客户端状态: {
-      战局状态: 战局状态.value,
-      回合数显示: round.value,
-      出招阶段: 出招阶段.value,
-      剩余秒数: 剩余秒数.value,
-      回合超时毫秒: roundTimeoutMs.value,
-      currentUnitKey: currentUnitKey.value,
-      selectingTarget: selectingTarget.value,
-      currentActionMode: currentActionMode.value,
-      autoMode: autoMode.value,
-      autoAttackEnabled: autoAttackEnabled.value,
-      actionsMap: { ...actionsMap.value },
-      selfTeam: unitSnap(selfTeam.value),
-      opponentTeam: unitSnap(opponentTeam.value),
-      系统战况文本: [...roundSystemLog.value],
-    },
+    最近回合结算事件: rr
+      ? {
+          ...rr,
+          战况文本系统,
+          战况文本用户: filterUserBattleDisplayLines(Array.isArray(rr.战况文本用户) ? rr.战况文本用户 : []),
+        }
+      : null,
   }
   const text = JSON.stringify(payload, null, 2)
   try {
@@ -1505,27 +1671,12 @@ async function submitAllActions() {
   waitingOpponentAfterSubmit.value = true
   setBanner(`等待对方出招中...(${剩余秒数.value})`, 'info')
 
-  const actionList = []
-  const selfUnits = selfTeam.value.filter(u => u.type === 'unit')
-  for (const u of selfUnits) {
-    const saved = actionsMap.value[u.key]
-    actionList.push({
-      unitKey: u.key,
-      操作: saved?.操作 || null,
-      目标: saved?.目标 || null,
-      物品: saved?.物品 || null,
-      招将: saved?.招将 || null,
-      招将槽位: saved?.招将槽位 ?? null,
-      技能: saved?.技能 || null,
-      已自动: !!autoMode.value && !saved?.操作,
-    })
-  }
+  const actionList = buildActionList(selfTeam.value, actionsMap.value)
 
   try {
     const ok = emitBattleActionsSubmit({
       回合数: round.value,
       出招列表: actionList,
-      使用自动: autoMode.value,
     })
     if (!ok) {
       waitingOpponentAfterSubmit.value = false
@@ -1542,19 +1693,9 @@ async function submitAllActions() {
 
 function runAutoAttackFillAndSubmit() {
   if (!出招阶段.value || waitingOpponentAfterSubmit.value) return
-  autoMode.value = true
   exitSelectionMode()
 
-  const selfUnits = selfTeam.value.filter(
-    (u) => u.type === 'unit' && (u.curHp > 0 || String(u.key || '').endsWith(':主将')),
-  )
-  const enemyUnits = opponentTeam.value.filter(eu => eu.type === 'unit' && eu.curHp > 0)
-  const fastestEnemy = [...enemyUnits].sort((a, b) => a.速度排名 - b.速度排名)[0] || null
-  const nextMap = { ...actionsMap.value }
-  for (const u of selfUnits) {
-    nextMap[u.key] = { 操作: '攻击', 目标: fastestEnemy?.key || null }
-  }
-  actionsMap.value = nextMap
+  actionsMap.value = fillAutoAttackActions(selfTeam.value, opponentTeam.value, actionsMap.value)
 
   void submitAllActions()
 }
@@ -1575,22 +1716,49 @@ async function loadBattleSnapshot() {
       clearBattle()
       return
     }
-    if (String(data?.战局?.id || '') && String(data.战局.id) === String(dismissedBattleId.value || '')) {
+    const curBattleId = String(data?.战局?.id || '')
+    if (curBattleId && curBattleId === String(dismissedBattleId.value || '')) {
       clearBattle()
       return
     }
+    // 首次进入/重连时：如果是第一次加载且战局仍在该用户名下（有快照），说明用户参与了这局
+    const isFirstLoad = selfTeam.value.length === 0 && opponentTeam.value.length === 0 && !sessionBattleId
+    if (isFirstLoad && curBattleId) {
+      sessionBattleId = curBattleId
+      expectedBattleId = curBattleId
+      // 首次加载已有战局（无论战局中/已结束），视为用户参与了该局
+      if (data.战局.状态 === '战局中') {
+        wasBattleActiveThisSession.value = true
+      } else if (data.战局.状态 === '已结束') {
+        // 重连时战局已结束，但用户之前参与了（有快照数据）→ 也应弹出结束框
+        // 通过检查快照是否包含用户自己的配置数据来判断
+        if (data.我方 && data.敌方) {
+          wasBattleActiveThisSession.value = true
+        }
+      }
+    }
     lastBattleSnapshot.value = data
     战局状态.value = data.战局.状态 || ''
-    if (data.战局.状态 === '已结束') {
+    if (data.战局.状态 === '战局中' && !wasBattleActiveThisSession.value) {
+      wasBattleActiveThisSession.value = true
+    }
+    if (data.战局.状态 === '已结束' && wasBattleActiveThisSession.value) {
       autoAttackEnabled.value = false
       battleEndIWon.value = data.战局.备注?.includes('已逃跑') ? true : (data.胜者 === '我方')
       battleEndMessage.value = data.战局.备注 || '一方已逃跑'
+      if (String(data.战局.备注 || '').includes('服务器重启')) {
+        appendSystemLine('战局因服务器重启已终止')
+        setBanner('战局因服务器重启终止', 'warning')
+      }
       if (animating.value) {
         pendingBattleEndPopup.value = true
       } else {
         pendingBattleEndPopup.value = false
         nextTick(() => { showBattleEndPopup.value = true })
       }
+    }
+    if (data.战局.状态 === '已结束' && !wasBattleActiveThisSession.value) {
+      战局状态.value = ''
     }
     const cr = Number(data.战局.当前回合 || 0)
     const tr = Number(data.战局.回合数 ?? 0)
@@ -1599,19 +1767,21 @@ async function loadBattleSnapshot() {
     对手用户名.value = data?.敌方?.用户名 || ''
     if (对手用户名.value) setCurrentOpponent(对手用户名.value)
 
-    const isFirstLoad = selfTeam.value.length === 0 && opponentTeam.value.length === 0
     if (isFirstLoad) {
-      const rankMap = buildSpeedRankMap(data.我方, data.敌方)
-      selfTeam.value = toTeam(data.我方, 'self', rankMap)
-      opponentTeam.value = toTeam(data.敌方, 'enemy', rankMap)
+      selfTeam.value = toTeam(data.我方, 'self', null)
+      opponentTeam.value = toTeam(data.敌方, 'enemy', null)
     }
-    if (Array.isArray(data.单位状态) && !animating.value) {
+    const battleEnded = data.战局.状态 === '已结束'
+    const hasTeamData = selfTeam.value.length > 0 || opponentTeam.value.length > 0
+    if (Array.isArray(data.单位状态) && !animating.value && !(battleEnded && hasTeamData)) {
       for (const us of data.单位状态) {
-        applyUnitStateRow(us, data, { updateRank: false })
+        applyUnitStateRow(us, data, { updateRank: true })
       }
     }
 
-    mergeServerRoundLog(data.回合信息, data.战局)
+    if (!animating.value) {
+      mergeServerRoundLog(data.回合信息, data.战局)
+    }
     // 战局页偶发错过 `round-started`（如切页/重连）时，主动补发开回合请求恢复可操作状态
     if (战局状态.value === '战局中' && !出招阶段.value && !waitingOpponentAfterSubmit.value) {
       scheduleBootstrapRoundIfIdle()
@@ -1635,7 +1805,16 @@ function scheduleBootstrapRoundIfIdle() {
   clearTimeout(bootstrapRoundTimer)
   bootstrapRoundTimer = setTimeout(() => {
     if (战局状态.value !== '战局中' || 出招阶段.value) return
-    void startNewRound()
+    if (connectionStatus.value !== 'online') return
+    const ok = emitBattleRoundStart()
+    if (!ok) {
+      clearTimeout(bootstrapRoundTimer)
+      bootstrapRoundTimer = setTimeout(() => {
+        if (战局状态.value !== '战局中' || 出招阶段.value) return
+        if (connectionStatus.value !== 'online') return
+        void startNewRound()
+      }, 300)
+    }
   }, 200)
 }
 
@@ -1644,8 +1823,14 @@ async function onFlee() {
   fleeing.value = true
   try {
     dismissedBattleId.value = String(lastBattleSnapshot.value?.战局?.id || '')
-    await http.post('/api/battle/flee')
-    clearBattle()
+    const ok = emitBattleFlee()
+    if (!ok) {
+      setBanner('网络未连接，无法逃跑', 'warning')
+      return
+    }
+    battleStore.onBattleEnd()
+    sessionBattleId = ''
+    expectedBattleId = ''
   } finally {
     fleeing.value = false
   }
@@ -1658,8 +1843,11 @@ function onBattleEndConfirm() {
   battleEndMessage.value = ''
   battleEndIWon.value = false
   战局状态.value = ''
+  wasBattleActiveThisSession.value = false
   autoAttackEnabled.value = false
-  autoMode.value = false
+  battleStore.onBattleEnd()
+  sessionBattleId = ''
+  expectedBattleId = ''
   showItemPopup.value = false
   showSkillPopup.value = false
   showSummonPopup.value = false

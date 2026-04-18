@@ -1,14 +1,17 @@
 <template>
   <div class="page">
     <h2>登录 / 注册</h2>
-    <p class="hint">用户名与密码 1–20 位；用户名仅中文、字母、数字、下划线。</p>
+    <p class="hint">
+      用户名 1–5 位；用户名仅中文、字母、数字<br>
+      密码 1–20 位；密码仅字母、数字
+    </p>
     <div class="field">
       <label>用户名</label>
-      <input v-model="用户名" type="text" autocomplete="username" maxlength="20" />
+      <input v-model="用户名" type="text" autocomplete="username" />
     </div>
     <div class="field">
       <label>密码</label>
-      <input v-model="密码" type="password" autocomplete="current-password" maxlength="20" />
+      <input v-model="密码" type="password" autocomplete="current-password" />
     </div>
     <div v-if="消息" class="msg error">{{ 消息 }}</div>
     <div class="row" style="margin-top: 12px">
@@ -70,10 +73,10 @@ async function onRegister() {
   loading.value = true
   try {
     const { data } = await http.post('/api/register', {
-      用户名: 用户名.value,
+      用户名: 用户名.value.trim(),
       密码: 密码.value,
     })
-    saveSession({ token: data.token, 用户名: 用户名.value, 密码: 密码.value })
+    saveSession({ token: data.token, 用户名: 用户名.value.trim(), 密码: 密码.value })
     await afterAuthRedirect()
   } catch (e) {
     消息.value = e?.response?.data?.错误 || '注册失败'

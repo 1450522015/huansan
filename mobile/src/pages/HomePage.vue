@@ -5,8 +5,6 @@
       <div class="home-actions">
         <button class="btn" type="button" :disabled="configSaving" @click="onSave">保存</button>
         <button class="btn secondary" type="button" @click="onRevert">回退</button>
-        <button class="btn secondary" type="button" @click="openImp = true">导入</button>
-        <button class="btn secondary" type="button" @click="onOpenExport">导出</button>
       </div>
     </div>
     <div v-if="configBanner" class="msg banner-msg" :class="bannerTone">{{ configBanner }}</div>
@@ -33,8 +31,13 @@
 
     <div class="card block">
       <table class="tbl deputy-tbl">
-        <tbody>
-          <tr v-for="row in 副将行" :key="row.i">
+        <tbody
+          ref="deputyTbodyRef"
+          @touchstart="onTouchStart"
+          @touchmove="onTouchMove"
+          @touchend="onTouchEnd"
+        >
+          <tr v-for="(row, idx) in 副将行" :key="row.i" :data-index="idx" :class="{ 'drag-row': dragSrcIndex === idx }">
             <td>
               <a href="#" class="link-name" @click.prevent="go副将(row.i)">{{ row.名 }}</a>
             </td>
@@ -60,27 +63,6 @@
       </table>
     </div>
 
-    <div v-if="openImp" class="modal" @click.self="openImp = false">
-      <div class="modal-body card">
-        <h3 style="margin-top: 0">导入</h3>
-        <textarea v-model="importText" class="imp-ta" placeholder="粘贴完整配置 JSON"></textarea>
-        <div class="row">
-          <button class="btn" type="button" @click="onApplyImport">覆盖本地配置</button>
-          <button class="btn secondary" type="button" @click="openImp = false">取消</button>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="openExp" class="modal" @click.self="openExp = false">
-      <div class="modal-body card">
-        <h3 style="margin-top: 0">导出</h3>
-        <textarea :value="exportText" class="imp-ta" readonly></textarea>
-        <div class="row">
-          <button class="btn" type="button" @click="onCopyExport">复制</button>
-          <button class="btn secondary" type="button" @click="openExp = false">关闭</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -95,15 +77,10 @@ import {
   configBanner,
   configSaving,
   savePlayerConfig,
-  applyConfigImport,
   revertToVerifiedOrDefault,
 } from '@/shared/config/usePlayerConfig.js'
 
 const router = useRouter()
-const openImp = ref(false)
-const openExp = ref(false)
-const importText = ref('')
-const exportText = ref('')
 
 const 主将名 = computed(() => {
   try {
@@ -187,6 +164,97 @@ function on状态(i, 要战) {
   }
 }
 
+/** 拖拽排序 */
+const deputyTbodyRef = ref(null)
+let dragSrcIndex = -1
+let dragGhost = null
+let longPressTimer = null
+
+function reorderArray(from, to) {
+  if (from === to) return
+  const list = 配置.副将列表 || []
+  if (from < 0 || from >= list.length || to < 0 || to >= list.length) return
+  const item = list.splice(from, 1)[0]
+  list.splice(to, 0, item)
+  configDirty.value = true
+}
+
+function onTouchStart(e) {
+  const tr = e.target.closest('tr')
+  if (!tr || deputyTbodyRef.value !== tr.parentElement) return
+  const idx = Number(tr.dataset.index)
+  if (Number.isNaN(idx)) return
+  longPressTimer = setTimeout(() => {
+    dragSrcIndex = idx
+    const row = tr
+    dragGhost = row.cloneNode(true)
+    dragGhost.style.position = 'fixed'
+    dragGhost.style.zIndex = '1000'
+    dragGhost.style.opacity = '0.85'
+    dragGhost.style.pointerEvents = 'none'
+    dragGhost.style.width = row.offsetWidth + 'px'
+    dragGhost.style.transform = 'scale(1.03)'
+    dragGhost.style.background = '#1e293b'
+    document.body.appendChild(dragGhost)
+    row.style.opacity = '0.3'
+    row.dataset.dragging = '1'
+    positionDragGhost(e.touches[0].clientX, e.touches[0].clientY)
+    if (navigator.vibrate) navigator.vibrate(30)
+  }, 250)
+}
+
+function onTouchMove(e) {
+  if (dragSrcIndex < 0 || !dragGhost) return
+  e.preventDefault()
+  const t = e.touches[0]
+  positionDragGhost(t.clientX, t.clientY)
+  const el = document.elementFromPoint(t.clientX, t.clientY)
+  const targetTr = el?.closest('tr[data-index]')
+  if (targetTr && deputyTbodyRef.value === targetTr.parentElement) {
+    const targetIdx = Number(targetTr.dataset.index)
+    if (targetIdx !== dragSrcIndex) {
+      const srcTr = deputyTbodyRef.value.querySelector(`tr[data-index="${dragSrcIndex}"]`)
+      if (srcTr) srcTr.style.opacity = '0.3'
+      targetTr.style.opacity = '1'
+    }
+  }
+}
+
+function onTouchEnd(e) {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+  if (dragSrcIndex < 0 || !dragGhost) return
+  const t = e.changedTouches[0]
+  if (dragGhost) {
+    document.body.removeChild(dragGhost)
+    dragGhost = null
+  }
+  const el = document.elementFromPoint(t.clientX, t.clientY)
+  const targetTr = el?.closest('tr[data-index]')
+  if (targetTr && deputyTbodyRef.value === targetTr.parentElement) {
+    const targetIdx = Number(targetTr.dataset.index)
+    if (targetIdx !== dragSrcIndex && !Number.isNaN(targetIdx)) {
+      const srcOriginalIdx = 副将行.value[dragSrcIndex].i
+      const tgtOriginalIdx = 副将行.value[targetIdx].i
+      reorderArray(srcOriginalIdx, tgtOriginalIdx)
+    }
+  }
+  const allTrs = deputyTbodyRef.value?.querySelectorAll('tr[data-index]')
+  allTrs?.forEach((t) => {
+    t.style.opacity = '1'
+    delete t.dataset.dragging
+  })
+  dragSrcIndex = -1
+}
+
+function positionDragGhost(x, y) {
+  if (!dragGhost) return
+  dragGhost.style.left = x - 10 + 'px'
+  dragGhost.style.top = y - 20 + 'px'
+}
+
 const 认证文案 = computed(() => {
   if (配置已认证.value && !configDirty.value) return '已保存'
   return '未保存'
@@ -204,50 +272,6 @@ async function onSave() {
 function onRevert() {
   const { hadSnapshot } = revertToVerifiedOrDefault()
   configBanner.value = hadSnapshot ? '已回退到上次保存配置' : '无已保存快照，已回退为默认初始配置'
-}
-
-function onApplyImport() {
-  try {
-    const obj = JSON.parse(importText.value)
-    applyConfigImport(obj)
-    openImp.value = false
-    importText.value = ''
-    configBanner.value = '已从 JSON 导入（未保存则仍为未认证）'
-  } catch {
-    configBanner.value = 'JSON 解析失败'
-  }
-}
-
-function onOpenExport() {
-  exportText.value = JSON.stringify(配置, null, 2)
-  openExp.value = true
-}
-
-async function onCopyExport() {
-  try {
-    if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(exportText.value)
-      configBanner.value = '已复制导出 JSON'
-      return
-    }
-  } catch {
-    // fallback below
-  }
-  const ta = document.createElement('textarea')
-  ta.value = exportText.value
-  ta.style.position = 'fixed'
-  ta.style.opacity = '0'
-  document.body.appendChild(ta)
-  ta.focus()
-  ta.select()
-  try {
-    document.execCommand('copy')
-    configBanner.value = '已复制导出 JSON'
-  } catch {
-    configBanner.value = '复制失败，请手动复制'
-  } finally {
-    document.body.removeChild(ta)
-  }
 }
 
 function go主将() {
@@ -307,6 +331,9 @@ function go副将(i) {
 }
 .deputy-tbl td:nth-child(5) {
   white-space: nowrap;
+}
+.drag-row {
+  opacity: 0.3;
 }
 .link-name {
   color: #60a5fa;

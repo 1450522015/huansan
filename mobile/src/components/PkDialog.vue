@@ -36,6 +36,17 @@
           <button class="btn secondary" type="button" @click="onReject">拒绝</button>
         </div>
       </template>
+
+      <!-- 被拒绝确认 -->
+      <template v-else-if="mode === 'rejected'">
+        <div class="status-text">
+          <span class="emoji">❌</span>
+          <span>{{ rejectReason || '对方拒绝了挑战' }}</span>
+        </div>
+        <div class="confirm-actions">
+          <button class="confirm-btn" @click="onConfirmRejected">确定</button>
+        </div>
+      </template>
       </div>
     </div>
   </Teleport>
@@ -44,7 +55,7 @@
 <script setup>
 const props = defineProps({
   visible: { type: Boolean, default: false },
-  mode: { type: String, default: 'receiving' }, // 'waiting' | 'receiving'
+  mode: { type: String, default: 'receiving' },
   发起用户名: { type: String, default: '' },
   发起转数: { type: Number, default: 0 },
   发起等级: { type: Number, default: 1 },
@@ -53,33 +64,31 @@ const props = defineProps({
   目标转数: { type: Number, default: 0 },
   目标等级: { type: Number, default: 1 },
   目标职业串: { type: String, default: '' },
+  rejectReason: { type: String, default: '' },
 })
 
-const emit = defineEmits(['update:visible', 'accepted', 'rejected', 'cancel'])
+const emit = defineEmits(['accepted', 'rejected', 'cancel', 'confirm-rejected'])
 
-// 发起方取消
 function onCancel() {
   emit('cancel')
-  emit('update:visible', false)
 }
 
-// 点击遮罩关闭（仅对接收模式有效）
 function onCancelOrClose() {
   if (props.mode === 'receiving') {
     onReject()
   }
 }
 
-// 被挑战方同意
 function onAccept() {
-  emit('accepted', { 发起用户名: props.发起用户名 })
-  emit('update:visible', false)
+  emit('accepted')
 }
 
-// 被挑战方拒绝
 function onReject() {
-  emit('rejected', { 发起用户名: props.发起用户名 })
-  emit('update:visible', false)
+  emit('rejected')
+}
+
+function onConfirmRejected() {
+  emit('confirm-rejected')
 }
 </script>
 

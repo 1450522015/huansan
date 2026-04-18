@@ -10,6 +10,9 @@
         <router-link to="/battles" class="nav-item" :class="{ active: route.name === 'battles' }">
           战局管理
         </router-link>
+        <router-link to="/ai-opponents" class="nav-item" :class="{ active: route.name === 'ai-opponents' }">
+          电脑人机
+        </router-link>
       </nav>
     </aside>
     <div class="main-wrap">
