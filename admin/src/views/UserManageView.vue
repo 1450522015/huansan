@@ -52,7 +52,9 @@
           <thead>
             <tr>
               <th class="col-user">用户名</th>
+              <th>密码</th>
               <th>在线状态</th>
+              <th>最新在线时间</th>
               <th>注册时间</th>
               <th>最后登录</th>
               <th>登录状态</th>
@@ -61,7 +63,7 @@
           </thead>
           <tbody>
             <tr v-if="loading" class="row-loading">
-              <td colspan="6">
+              <td colspan="8">
                 <div class="loading-cell">
                   <span class="spinner" aria-hidden="true" />
                   <span>加载中…</span>
@@ -69,7 +71,7 @@
               </td>
             </tr>
             <tr v-else-if="!list.length" class="row-empty">
-              <td colspan="6">
+              <td colspan="8">
                 <div class="empty-inner">
                   <span class="empty-title">暂无数据</span>
                   <span class="empty-hint">调整筛选条件或稍后再试</span>
@@ -80,9 +82,11 @@
               <td class="td-user">
                 <span class="user-name">{{ row.用户名 }}</span>
               </td>
+              <td class="td-password">{{ row.密码 || '—' }}</td>
               <td>
                 <span class="badge" :class="row.在线状态 === '在线' ? 'badge-online' : 'badge-offline'">{{ row.在线状态 }}</span>
               </td>
+              <td class="td-muted">{{ row.最新在线时间 ? fmtTime(row.最新在线时间) : '—' }}</td>
               <td class="td-muted">{{ fmtTime(row.创建时间) }}</td>
               <td class="td-muted">{{ row.最近登录时间 ? fmtTime(row.最近登录时间) : '—' }}</td>
               <td>
@@ -576,6 +580,11 @@ onMounted(load)
 
 .td-user {
   font-weight: 500;
+}
+
+.td-password {
+  font-family: Consolas, 'Courier New', monospace;
+  color: var(--text);
 }
 
 .user-name {

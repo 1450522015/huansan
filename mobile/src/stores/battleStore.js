@@ -1,275 +1,172 @@
-import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import router from '@/router/index.js'
-import {
-  connect as socketConnect,
-  disconnect as socketDisconnect,
-  useSocketClient,
-  emitPkChallenge,
-  emitPkResponse,
-  emitPkCancel,
-  emitPkCheckPending,
-  setCurrentOpponent,
-  clearPendingPkTarget,
-} from '@/shared/socket/socketClient.js'
-
-const PHASES = ['idle', 'waiting', 'challenged', 'rejected', 'battling']
-
-function isValidPhase(p) {
-  return PHASES.includes(p)
-}
+import { computed, ref } from 'vue'
+import { getSocket } from '@/shared/socket/socketClient.js'
+import { useSocketClient } from '@/shared/socket/socketClient.js'
 
 export const useBattleStore = defineStore('battle', () => {
-  const phase = ref('idle')
-  const opponent = ref('')
-  const opponentInfo = ref({ 转数: 0, 等级: 1, 职业串: '' })
-  const starterInfo = ref({ 转数: 0, 等级: 1, 职业串: '' })
-  const starterName = ref('')
-  const rejectReason = ref('')
+  const battleSnapshot = ref(null)
+  const pkInvitation = ref(null)
+  const sentPkRequest = ref(null)
+  const battleLoading = ref(false)
+  const battleLoadingReason = ref('')
 
-  const isDialogVisible = computed(() =>
-    ['waiting', 'challenged', 'rejected'].includes(phase.value)
-  )
+  const myUsername = computed(() => localStorage.getItem('huansan_用户名') || '')
 
-  const dialogMode = computed(() => {
-    switch (phase.value) {
-      case 'waiting': return 'waiting'
-      case 'challenged': return 'receiving'
-      case 'rejected': return 'rejected'
-      default: return ''
-    }
+  const 我是红方 = computed(() => {
+    if (!battleSnapshot.value) return true
+    return battleSnapshot.value.战局描述?.红方用户名 === myUsername.value
   })
 
-  const canPk = computed(() => phase.value === 'idle')
+  const 我方已出招 = computed(() => {
+    if (!battleSnapshot.value) return false
+    if (我是红方.value) return battleSnapshot.value._红方已出招 ?? false
+    return battleSnapshot.value._黑方已出招 ?? false
+  })
 
-  const inBattle = computed(() => phase.value === 'battling')
+  const 战局描述 = computed(() => battleSnapshot.value?.战局描述)
+  const 战局已结束 = computed(() => battleSnapshot.value?.战局描述?.状态 === '已结束')
 
-  function transition(newPhase) {
-    if (!isValidPhase(newPhase)) return
-    phase.value = newPhase
+  let navigateToBattleFn = null
+  let isInBattlePageFn = null
+
+  function doEmit(event, data) {
+    const sock = getSocket()
+    console.log('[battleStore.doEmit]', event, 'socket=', !!sock, 'connected=', sock?.connected)
+    if (sock && sock.connected) {
+      sock.emit(event, data)
+    } else {
+      console.error('[battleStore.doEmit] socket not connected!')
+    }
   }
 
-  function resetPkState() {
-    phase.value = 'idle'
-    opponent.value = ''
-    opponentInfo.value = { 转数: 0, 等级: 1, 职业串: '' }
-    starterInfo.value = { 转数: 0, 等级: 1, 职业串: '' }
-    starterName.value = ''
-    rejectReason.value = ''
-    clearPendingPkTarget()
-  }
-
-  function challenge(target, info = {}) {
-    if (phase.value !== 'idle') return
-    opponent.value = target
-    opponentInfo.value = {
-      转数: info.目标转数 ?? 0,
-      等级: info.目标等级 ?? 1,
-      职业串: info.目标职业串 ?? '',
-    }
-    starterInfo.value = {
-      转数: info.发起转数 ?? 0,
-      等级: info.发起等级 ?? 1,
-      职业串: info.发起职业串 ?? '',
-    }
-    const sent = emitPkChallenge(target)
-    if (!sent) {
-      resetPkState()
+  function handlePkPush(data) {
+    if (!data?.success) {
+      if (battleLoading.value) {
+        battleLoadingReason.value = data?.原因 || 'PK失败'
+        battleLoading.value = false
+      }
+      if (data?.原因 === '不在战局中') {
+        battleSnapshot.value = null
+        sentPkRequest.value = null
+      }
       return
     }
-    transition('waiting')
-  }
 
-  function challengedBy(starter, info = {}) {
-    if (phase.value === 'waiting') {
-      if (opponent.value) {
-        emitPkCancel(opponent.value)
-      }
-      resetPkState()
+    battleLoading.value = false
+    battleLoadingReason.value = ''
+
+    const snapshot = data.战局
+    const 已出招 = data.已出招 ?? false
+    const 红方用户名 = snapshot.战局描述?.红方用户名
+    const isRed = 红方用户名 === myUsername.value
+
+    const newSnapshot = {
+      ...snapshot,
+      是红方: isRed,
+      _红方已出招: false,
+      _黑方已出招: false,
     }
-    if (phase.value === 'rejected') {
-      resetPkState()
-    }
-    if (phase.value !== 'idle') return
-    starterName.value = starter
-    starterInfo.value = {
-      转数: info.发起转数 ?? 0,
-      等级: info.发起等级 ?? 1,
-      职业串: info.发起职业串 ?? '',
-    }
-    transition('challenged')
+
+    battleSnapshot.value = newSnapshot
   }
 
-  function acceptChallenge() {
-    if (phase.value !== 'challenged') return
-    const target = starterName.value
-    emitPkResponse(target, true)
-    setCurrentOpponent(target)
-    resetPkState()
-    transition('battling')
-    router.push({ name: 'battle', query: { opponent: target } })
-  }
-
-  function rejectChallenge() {
-    if (phase.value !== 'challenged') return
-    emitPkResponse(starterName.value, false)
-    resetPkState()
-  }
-
-  function onOpponentAccepted(data) {
-    if (phase.value !== 'waiting') return
-    const target = opponent.value
-    setCurrentOpponent(target)
-    resetPkState()
-    transition('battling')
-    router.push({ name: 'battle', query: { opponent: target } })
-  }
-
-  function onOpponentRejected(reason) {
-    if (phase.value !== 'waiting') return
-    rejectReason.value = reason || '对方拒绝了挑战'
-    transition('rejected')
-    clearPendingPkTarget()
-  }
-
-  function cancelChallenge() {
-    if (phase.value !== 'waiting') return
-    if (opponent.value) {
-      emitPkCancel(opponent.value)
-    }
-    resetPkState()
-  }
-
-  function confirmRejected() {
-    if (phase.value !== 'rejected') return
-    resetPkState()
-  }
-
-  function onOpponentCancelled() {
-    if (phase.value === 'challenged') {
-      resetPkState()
-    }
-  }
-
-  function onBattleEnd() {
-    resetPkState()
-    checkPendingPk()
-  }
-
-  function onSocketDisconnect() {
-    if (phase.value === 'waiting') {
-      resetPkState()
-    }
-  }
-
-  function onPkResultFromServer(data) {
-    if (!data) return
-    if (data.同意) {
-      onOpponentAccepted(data)
+  function handlePkInvite(data) {
+    console.log('[battleStore] handlePkInvite:', data)
+    if (battleLoading.value) return
+    if (isInBattlePageFn && isInBattlePageFn()) return
+    if (Array.isArray(data) && data.length > 0) {
+      pkInvitation.value = data[0]
+    } else if (data && typeof data === 'object') {
+      pkInvitation.value = data
     } else {
-      onOpponentRejected(data.原因)
+      pkInvitation.value = null
     }
   }
 
-  function onPkRequestFromServer(data) {
-    if (!data) return
-    challengedBy(data.发起用户名, {
-      发起转数: data.发起转数,
-      发起等级: data.发起等级,
-      发起职业串: data.发起职业串,
-    })
+  function setNavigateFunctions(navigateFn, isInBattleFn) {
+    navigateToBattleFn = navigateFn
+    isInBattlePageFn = isInBattleFn
   }
 
-  function onPkSentFromServer(data) {
-    if (!data) return
-    if (phase.value !== 'waiting') return
-    opponentInfo.value = {
-      转数: data.目标转数 ?? opponentInfo.value.转数,
-      等级: data.目标等级 ?? opponentInfo.value.等级,
-      职业串: data.目标职业串 ?? opponentInfo.value.职业串,
-    }
-    starterInfo.value = {
-      转数: data.发起转数 ?? starterInfo.value.转数,
-      等级: data.发起等级 ?? starterInfo.value.等级,
-      职业串: data.发起职业串 ?? starterInfo.value.职业串,
-    }
+  function challenge(目标用户名) {
+    console.log('[battleStore] challenge:', 目标用户名)
+    if (目标用户名 === myUsername.value) return
+    doEmit('pk-request', { 目标用户名 })
+    sentPkRequest.value = { 目标用户名 }
+    setTimeout(() => {
+      if (sentPkRequest.value?.目标用户名 === 目标用户名) {
+        sentPkRequest.value = null
+      }
+    }, 3000)
   }
 
-  function onPkCancelFromServer(data) {
-    if (!data) return
-    if (phase.value === 'challenged' && data.发起用户名 === starterName.value) {
-      resetPkState()
-    }
+  function acceptPk(邀请者用户名) {
+    doEmit('pk-agree', { 邀请者用户名 })
+    battleLoading.value = true
+    battleLoadingReason.value = ''
+    pkInvitation.value = null
   }
 
-  let socketsBound = false
-  let pendingCheckTimer = null
-
-  function checkPendingPk() {
-    if (phase.value === 'idle') {
-      emitPkCheckPending()
-    }
+  function rejectPk(邀请者用户名) {
+    doEmit('pk-reject', { 邀请者用户名 })
+    pkInvitation.value = null
   }
 
-  function startPendingCheck() {
-    stopPendingCheck()
-    checkPendingPk()
-    pendingCheckTimer = setInterval(checkPendingPk, 5000)
+  function dismissPkInvitation() {
+    pkInvitation.value = null
   }
 
-  function stopPendingCheck() {
-    if (pendingCheckTimer) {
-      clearInterval(pendingCheckTimer)
-      pendingCheckTimer = null
+  function submitPlan(出招数据) {
+    doEmit('pk-plan', 出招数据)
+    battleSnapshot.value = {
+      ...battleSnapshot.value,
+      _红方已出招: 我是红方.value ? true : battleSnapshot.value._红方已出招,
+      _黑方已出招: 我是红方.value ? battleSnapshot.value._黑方已出招 : true,
     }
   }
 
-  function bindSocketListeners() {
-    if (socketsBound) return
-    const {
-      onPkResult,
-      onPkRequest,
-      onPkSent,
-      onPkCancel,
-    } = useSocketClient()
+  function fleeBattle() {
+    doEmit('pk-plan', { type: 'flee' })
+  }
 
-    onPkResult(onPkResultFromServer)
-    onPkRequest(onPkRequestFromServer)
-    onPkSent(onPkSentFromServer)
-    onPkCancel(onPkCancelFromServer)
-    socketsBound = true
+  function clearBattle() {
+    battleSnapshot.value = null
+    battleLoading.value = false
+    battleLoadingReason.value = ''
+    sentPkRequest.value = null
   }
 
   function init() {
-    socketConnect()
-    bindSocketListeners()
-    startPendingCheck()
+    const { onPkPush, offPkPush, onPkInvite, offPkInvite } = useSocketClient()
+    onPkPush(handlePkPush)
+    onPkInvite(handlePkInvite)
   }
 
   function destroy() {
-    socketDisconnect()
-    stopPendingCheck()
-    socketsBound = false
+    const { offPkPush, offPkInvite } = useSocketClient()
+    offPkPush(handlePkPush)
+    offPkInvite(handlePkInvite)
   }
 
   return {
-    phase,
-    opponent,
-    opponentInfo,
-    starterInfo,
-    starterName,
-    rejectReason,
-    isDialogVisible,
-    dialogMode,
-    canPk,
-    inBattle,
+    battleSnapshot,
+    pkInvitation,
+    sentPkRequest,
+    battleLoading,
+    battleLoadingReason,
+    myUsername,
+    我是红方,
+    我方已出招,
+    战局描述,
+    战局已结束,
     challenge,
-    acceptChallenge,
-    rejectChallenge,
-    cancelChallenge,
-    confirmRejected,
-    onBattleEnd,
-    onSocketDisconnect,
+    acceptPk,
+    rejectPk,
+    dismissPkInvitation,
+    submitPlan,
+    fleeBattle,
+    clearBattle,
+    setNavigateFunctions,
     init,
     destroy,
   }

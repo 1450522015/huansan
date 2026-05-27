@@ -38,19 +38,18 @@
           <thead>
             <tr>
               <th class="col-id">ID</th>
-              <th>发起人</th>
-              <th>目标人</th>
-              <th>发起时间</th>
+              <th>红方</th>
+              <th>黑方</th>
+              <th>创建时间</th>
               <th>状态</th>
-              <th>回合数</th>
-              <th>备注</th>
-              <th class="col-detail">详情</th>
+              <th>当前回合</th>
+              <th>详情</th>
               <th class="col-action">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading" class="row-loading">
-              <td colspan="9">
+              <td colspan="8">
                 <div class="loading-cell">
                   <span class="spinner" aria-hidden="true" />
                   <span>加载中…</span>
@@ -58,7 +57,7 @@
               </td>
             </tr>
             <tr v-else-if="!list.length" class="row-empty">
-              <td colspan="9">
+              <td colspan="8">
                 <div class="empty-inner">
                   <span class="empty-title">暂无数据</span>
                   <span class="empty-hint">调整筛选条件或稍后再试</span>
@@ -67,27 +66,26 @@
             </tr>
             <tr v-for="row in list" v-else :key="row.id" class="data-row">
               <td class="td-muted td-id">{{ row.id }}</td>
-              <td class="td-user">{{ row.发起用户名 }}</td>
-              <td class="td-user">{{ row.目标用户名 }}</td>
-              <td class="td-muted">{{ fmtTime(row.发起时间) }}</td>
+              <td class="td-user">{{ row.红方用户名 }}</td>
+              <td class="td-user">{{ row.黑方用户名 }}</td>
+              <td class="td-muted">{{ fmtTime(row.创建时间) }}</td>
               <td>
                 <span class="badge" :class="statusBadge(row.状态).cls">{{ statusBadge(row.状态).text }}</span>
               </td>
-              <td class="td-muted">{{ row.回合数 ?? 0 }}</td>
-              <td class="td-muted">{{ row.备注 || '—' }}</td>
+              <td class="td-muted">{{ row.当前回合 ?? 0 }}</td>
               <td class="td-detail">
                 <template v-if="row.状态 === '战局中'">
                   第 {{ row.当前回合 }} 回合
                 </template>
                 <template v-else-if="row.状态 === '已结束'">
-                  {{ fmtTime(row.结束时间) }}
+                  胜者：{{ row.战胜方玩家名称 || '—' }}
                 </template>
                 <template v-else>—</template>
               </td>
               <td class="col-action">
                 <template v-if="row.状态 === '战局中' || row.状态 === '已结束'">
-                  <button type="button" class="btn-action btn-action-copy" :disabled="copyingId === row.id" @click="onCopyDebug(row)">
-                    {{ copyingId === row.id ? '复制中…' : '复制调试' }}
+                  <button type="button" class="btn-action btn-action-copy" :disabled="copyingId === row.id" @click="onCopyBattle(row)">
+                    {{ copyingId === row.id ? '复制中…' : '复制' }}
                   </button>
                 </template>
                 <template v-else>—</template>
@@ -192,11 +190,11 @@ function next() {
   load()
 }
 
-async function onCopyDebug(row) {
+async function onCopyBattle(row) {
   copyingId.value = row.id
   try {
     const { data } = await http.get(`/api/admin/battles/${row.id}/debug`)
-    const json = JSON.stringify(data, null, 2)
+    const json = JSON.stringify(data.战局数据, null, 2)
     if (navigator?.clipboard?.writeText) {
       await navigator.clipboard.writeText(json)
     } else {
@@ -210,9 +208,9 @@ async function onCopyDebug(row) {
       document.execCommand('copy')
       document.body.removeChild(ta)
     }
-    error.value = `已复制战局 ${row.id} 的调试信息`
+    error.value = `已复制战局 ${row.id}`
   } catch (e) {
-    error.value = e?.response?.data?.错误 || '复制调试信息失败'
+    error.value = e?.response?.data?.错误 || '复制战局数据失败'
   } finally {
     setTimeout(() => { copyingId.value = null }, 600)
   }

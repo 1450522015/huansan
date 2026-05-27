@@ -1,9 +1,10 @@
 import { Router } from 'express'
-import * as userRepo from '../repositories/userRepo.js'
-import { authRequired } from '../middleware/auth.js'
-import { getDefaultConfig, normalizeConfigDeep } from '../services/defaultConfig.js'
-import { validateConfigForSave } from '../../../common/gameCatalog.js'
-import { invalidateUser } from '../services/configCache.js'
+import * as userRepo from '#src/repositories/userRepo.js'
+import { authRequired } from '#src/middleware/auth.js'
+import { getDefaultConfig, normalizeConfigDeep } from '#src/services/defaultConfig.js'
+import { validateConfigForSave } from '#core/gameCatalog.js'
+import { invalidateUser } from '#src/services/configCache.js'
+import * as battleService from '#src/services/battleService.js'
 
 export const configRouter = Router()
 configRouter.use(authRequired)
@@ -41,6 +42,8 @@ configRouter.post('/', async (req, res) => {
     const ok = userRepo.updateUserConfig(req.userId, v.配置, true)
     if (!ok) return res.status(404).json({ 错误: '用户不存在' })
     invalidateUser(req.userId)
+    // 保存配置后，广播在线用户列表（用户的转数/等级/职业/坐骑可能更新）
+    battleService.广播在线用户列表()
     return res.json({ 成功: true, 配置已认证: true })
   } catch (e) {
     console.error(e)

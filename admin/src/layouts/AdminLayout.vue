@@ -7,11 +7,23 @@
         <router-link to="/users" class="nav-item" :class="{ active: route.name === 'users' }">
           用户管理
         </router-link>
+        <router-link to="/waiting" class="nav-item" :class="{ active: route.name === 'waiting' }">
+          战局等候
+        </router-link>
         <router-link to="/battles" class="nav-item" :class="{ active: route.name === 'battles' }">
           战局管理
         </router-link>
         <router-link to="/ai-opponents" class="nav-item" :class="{ active: route.name === 'ai-opponents' }">
           电脑人机
+        </router-link>
+        <router-link to="/attr-calc" class="nav-item" :class="{ active: route.name === 'attr-calc' }">
+          属性计算
+        </router-link>
+        <router-link to="/engine-init" class="nav-item" :class="{ active: route.name === 'engine-init' }">
+          战局初始化
+        </router-link>
+        <router-link to="/engine-calc" class="nav-item" :class="{ active: route.name === 'engine-calc' }">
+          战局计算
         </router-link>
       </nav>
     </aside>

@@ -1,0 +1,392 @@
+[handleRoundResult] 被调用, data: {
+  "战局描述": {
+    "id": "B2281B1249DD76866",
+    "红方用户名": "729",
+    "黑方用户名": "血牛(电脑)",
+    "当前回合": 2,
+    "状态": "战局中",
+    "战胜方玩家名称": null
+  },
+  "红方": {
+    "用户名": "729",
+    "配置": {
+      "主将": {
+        "职业经历": [
+          "男文",
+          "男文",
+          "男文",
+          "男武"
+        ],
+        "等级": 160,
+        "转数": 3,
+        "属性分配": {
+          "体质": 160,
+          "智力": 160,
+          "力量": 160,
+          "敏捷": 800
+        },
+        "装备": {
+          "头盔": {
+            "名称": "凤翅鎏金盔",
+            "词条": "抗封锁",
+            "宝石": [
+              {
+                "属性": "抗围困",
+                "数值": 15
+              },
+              {
+                "属性": "抗围困",
+                "数值": 15
+              },
+              {
+                "属性": "抗围困",
+                "数值": 15
+              }
+            ]
+          },
+          "项饰": {
+            "名称": "缀星项链",
+            "词条": null,
+            "宝石": [
+              {
+                "属性": "抗扰乱",
+                "数值": 15
+              },
+              {
+                "属性": "抗扰乱",
+                "数值": 15
+              },
+              {
+                "属性": "抗扰乱",
+                "数值": 15
+              }
+            ]
+          },
+          "武器": {
+            "名称": "八楞紫金锤",
+            "词条": null,
+            "宝石": [
+              {
+                "属性": "穿透率",
+                "数值": 15
+              },
+              {
+                "属性": "穿透率",
+                "数值": 15
+              },
+              {
+                "属性": "穿透率",
+                "数值": 15
+              }
+            ]
+          },
+          "护腕": {
+            "名称": "星链护腕",
+            "词条": null,
+            "宝石": [
+              {
+                "属性": "穿透率",
+                "数值": 15
+              },
+              {
+                "属性": "穿透率",
+                "数值": 15
+              },
+              {
+                "属性": "穿透率",
+                "数值": 15
+              }
+            ]
+          },
+          "铠甲": {
+            "名称": "兽骨魔神甲",
+            "词条": null,
+            "宝石": [
+              {
+                "属性": "抗封锁",
+                "数值": 15
+              },
+              {
+                "属性": "抗封锁",
+                "数值": 15
+              },
+              {
+                "属性": "抗封锁",
+                "数值": 15
+              }
+            ]
+          },
+          "战靴": {
+            "名称": "龙骨靴",
+            "词条": "敏捷",
+            "宝石": [
+              {
+                "属性": "穿透率",
+                "数值": 15
+              },
+              {
+                "属性": "敏捷",
+                "数值": 15
+              },
+              {
+                "属性": "敏捷",
+                "数值": 15
+              }
+            ]
+          }
+        },
+        "坐骑": {
+          "种类": "木牛流马",
+          "转数": 3,
+          "等级": 160
+        },
+        "天赋": [
+          {
+            "名称": "强攻",
+            "等级": 160
+          },
+          {
+            "名称": "舍命",
+            "等级": 160
+          },
+          {
+            "名称": "舍攻",
+            "等级": 160
+          },
+          {
+            "名称": "强血",
+            "等级": 160
+          }
+        ],
+        "技能": [
+          {
+            "名称": "舍命一击",
+            "等级": "化境极",
+            "熟练度": 50000
+          },
+          {
+            "名称": "力劈华山",
+            "等级": "化境极",
+            "熟练度": 50000
+          },
+          {
+            "名称": "固若金汤",
+            "等级": "化境极",
+            "熟练度": 50000
+          },
+          {
+            "名称": "凌波微步",
+            "等级": "化境极",
+            "熟练度": 50000
+          }
+        ],
+        "帮派": {
+          "主抗性": "抗封锁",
+          "副抗性": "抗围困"
+        }
+      },
+      "副将列表": [
+        {
+          "职业经历": [
+            "男文",
+            "男文",
+            "男文",
+            "男文"
+          ],
+          "头衔": "神将",
+          "人物": "刘邦",
+          "星级": 6,
+          "真": true,
+          "无双等级": 160,
+          "默契度": 500000,
+          "等级": 160,
+          "转数": 3,
+          "属性分配": {
+            "体质": 160,
+            "智力": 160,
+            "力量": 160,
+            "敏捷": 800
+          },
+          "宝石": [
+            {
+              "属性": "抗围困",
+              "数值": 15
+            },
+            {
+              "属性": "抗围困",
+              "数值": 15
+            },
+            {
+              "属性": "抗围困",
+              "数值": 15
+            },
+            {
+              "属性": "抗扰乱",
+              "数值": 15
+            },
+            {
+              "属性": "抗扰乱",
+              "数值": 15
+            },
+            {
+              "属性": "抗封锁",
+              "数值": 15
+            },
+            {
+              "属性": "抗封锁",
+              "数值": 15
+            },
+            {
+              "属性": "抗封锁",
+              "数值": 15
+            },
+            {
+              "属性": "抗封锁",
+              "数值": 15
+            }
+          ],
+          "天赋": [
+            {
+              "名称": "强血",
+              "等级": 160
+            },
+            {
+              "名称": "围困",
+              "等级": 160
+            },
+            {
+              "
+BattlePageV2.vue:1997 [handleRoundResult] 回合信息: {回合数: 1, 红方出招: Array(4), 黑方出招: Array(4), 回合初状态: {…}, 战况事件序列: Array(14)}
+BattlePageV2.vue:1998 [handleRoundResult] 战况事件序列: (14) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+BattlePageV2.vue:2000 [handleRoundResult] events 长度: 14
+BattlePageV2.vue:2019 [handleRoundResult] 开始播放动画, 事件数: 14
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 凌波微步 玩家名: 729 武将下标: 1 actorPos: 右副将1
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'skill', anim: '凌波微步'}
+BattlePageV2.vue:1816 [playEventAnimation] skill: 凌波微步 targetPos: 右主将
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 凌波微步 subjectPos: 右副将1 targetPos: 右主将
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: right-1
+BattlePageV2.vue:1906 [onSkillDemoForAnimation] 执行凌波微步
+BattlePageV2.vue:1009 [runCanvasSkill] 开始: 凌波微步 右副将1 -> 右主将
+BattlePageV2.vue:1013 [runCanvasSkill] scene: true subjectEl: true targetEl: true
+BattlePageV2.vue:1023 [runCanvasSkill] subjectInner: true targetInner: true subjectCanvas: true
+BattlePageV2.vue:1030 [runCanvasSkill] subjectKey: right-1 POSES: object
+BattlePageV2.vue:1033 [runCanvasSkill] 第一步: 高亮
+BattlePageV2.vue:1040 [runCanvasSkill] canvas 绘制验证 - armRaised 后像素 RGBA: 0 0 0 0
+BattlePageV2.vue:1043 [runCanvasSkill] 第二步: 攻击姿态
+BattlePageV2.vue:1049 [runCanvasSkill] 第三步: 效果
+skillEffects.js:16 [runSkillEffect] canvas 创建: 凌波微步 尺寸: 0 x 0
+skillEffects.js:34 [runSkillEffect] 效果完成: 凌波微步
+BattlePageV2.vue:1051 [runCanvasSkill] 效果完成
+BattlePageV2.vue:1066 [runCanvasSkill] 第四步: 恢复
+BattlePageV2.vue:1079 [runCanvasSkill] 完成
+BattlePageV2.vue:1908 [onSkillDemoForAnimation] 凌波微步 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 画地为牢 玩家名: 729 武将下标: 0 actorPos: 右副将2
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'skill', anim: '画地为牢'}
+BattlePageV2.vue:1816 [playEventAnimation] skill: 画地为牢 targetPos: 左主将
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 画地为牢 subjectPos: 右副将2 targetPos: 左主将
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: right-2
+BattlePageV2.vue:1910 [onSkillDemoForAnimation] 执行画地为牢
+BattlePageV2.vue:1009 [runCanvasSkill] 开始: 画地为牢 右副将2 -> 左主将
+BattlePageV2.vue:1013 [runCanvasSkill] scene: true subjectEl: true targetEl: true
+BattlePageV2.vue:1023 [runCanvasSkill] subjectInner: true targetInner: true subjectCanvas: true
+BattlePageV2.vue:1030 [runCanvasSkill] subjectKey: right-2 POSES: object
+BattlePageV2.vue:1033 [runCanvasSkill] 第一步: 高亮
+BattlePageV2.vue:1040 [runCanvasSkill] canvas 绘制验证 - armRaised 后像素 RGBA: 0 0 0 0
+BattlePageV2.vue:1043 [runCanvasSkill] 第二步: 攻击姿态
+BattlePageV2.vue:1049 [runCanvasSkill] 第三步: 效果
+skillEffects.js:16 [runSkillEffect] canvas 创建: 画地为牢 尺寸: 430 x 428
+skillEffects.js:34 [runSkillEffect] 效果完成: 画地为牢
+BattlePageV2.vue:1051 [runCanvasSkill] 效果完成
+BattlePageV2.vue:1066 [runCanvasSkill] 第四步: 恢复
+BattlePageV2.vue:1079 [runCanvasSkill] 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 固若金汤 玩家名: 729 武将下标: 7 actorPos: 右副将3
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'skill', anim: '固若金汤'}
+BattlePageV2.vue:1816 [playEventAnimation] skill: 固若金汤 targetPos: 右主将
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 固若金汤 subjectPos: 右副将3 targetPos: 右主将
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: right-3
+BattlePageV2.vue:1903 [onSkillDemoForAnimation] 执行固若金汤
+BattlePageV2.vue:1009 [runCanvasSkill] 开始: 固若金汤 右副将3 -> 右主将
+BattlePageV2.vue:1013 [runCanvasSkill] scene: true subjectEl: true targetEl: true
+BattlePageV2.vue:1023 [runCanvasSkill] subjectInner: true targetInner: true subjectCanvas: true
+BattlePageV2.vue:1030 [runCanvasSkill] subjectKey: right-3 POSES: object
+BattlePageV2.vue:1033 [runCanvasSkill] 第一步: 高亮
+BattlePageV2.vue:1040 [runCanvasSkill] canvas 绘制验证 - armRaised 后像素 RGBA: 0 0 0 0
+BattlePageV2.vue:1043 [runCanvasSkill] 第二步: 攻击姿态
+BattlePageV2.vue:1049 [runCanvasSkill] 第三步: 效果
+skillEffects.js:16 [runSkillEffect] canvas 创建: 固若金汤 尺寸: 430 x 428
+skillEffects.js:34 [runSkillEffect] 效果完成: 固若金汤
+BattlePageV2.vue:1051 [runCanvasSkill] 效果完成
+BattlePageV2.vue:1066 [runCanvasSkill] 第四步: 恢复
+BattlePageV2.vue:1079 [runCanvasSkill] 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 舍命一击 玩家名: 729 武将下标: -1 actorPos: 右主将
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'skill', anim: '舍命一击'}
+BattlePageV2.vue:1816 [playEventAnimation] skill: 舍命一击 targetPos: 左主将
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 舍命一击 subjectPos: 右主将 targetPos: 左主将
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: right-0
+BattlePageV2.vue:1893 [onSkillDemoForAnimation] 执行舍命一击
+BattlePageV2.vue:1895 [onSkillDemoForAnimation] 舍命一击 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 防御 玩家名: 血牛(电脑) 武将下标: 0 actorPos: 左副将2
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'defend'}
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 防御 玩家名: 血牛(电脑) 武将下标: 2 actorPos: 左副将1
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'defend'}
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 防御 玩家名: 血牛(电脑) 武将下标: 1 actorPos: 左副将3
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'defend'}
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 防御 玩家名: 血牛(电脑) 武将下标: -1 actorPos: 左主将
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'defend'}
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 无双开启 玩家名: 729 武将下标: 1 actorPos: 右副将1
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'doubleOn'}
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 无双开启 subjectPos: 右副将1 targetPos: 右副将1
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: right-1
+BattlePageV2.vue:1940 [onSkillDemoForAnimation] 执行无双开启
+BattlePageV2.vue:1948 [onSkillDemoForAnimation] 无双开启 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 无双开启 玩家名: 729 武将下标: 0 actorPos: 右副将2
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'doubleOn'}
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 无双开启 subjectPos: 右副将2 targetPos: 右副将2
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: right-2
+BattlePageV2.vue:1940 [onSkillDemoForAnimation] 执行无双开启
+BattlePageV2.vue:1948 [onSkillDemoForAnimation] 无双开启 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 无双开启 玩家名: 729 武将下标: 7 actorPos: 右副将3
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'doubleOn'}
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 无双开启 subjectPos: 右副将3 targetPos: 右副将3
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: right-3
+BattlePageV2.vue:1940 [onSkillDemoForAnimation] 执行无双开启
+BattlePageV2.vue:1948 [onSkillDemoForAnimation] 无双开启 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 无双开启 玩家名: 血牛(电脑) 武将下标: 2 actorPos: 左副将1
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'doubleOn'}
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 无双开启 subjectPos: 左副将1 targetPos: 左副将1
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: left-0
+BattlePageV2.vue:1940 [onSkillDemoForAnimation] 执行无双开启
+BattlePageV2.vue:1948 [onSkillDemoForAnimation] 无双开启 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 无双开启 玩家名: 血牛(电脑) 武将下标: 0 actorPos: 左副将2
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'doubleOn'}
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 无双开启 subjectPos: 左副将2 targetPos: 左副将2
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: left-2
+BattlePageV2.vue:1940 [onSkillDemoForAnimation] 执行无双开启
+BattlePageV2.vue:1948 [onSkillDemoForAnimation] 无双开启 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:1782 [playEventAnimation] 动画: 无双开启 玩家名: 血牛(电脑) 武将下标: 1 actorPos: 左副将3
+BattlePageV2.vue:1797 [playEventAnimation] mapping: {type: 'doubleOn'}
+BattlePageV2.vue:1876 [onSkillDemoForAnimation] action: 无双开启 subjectPos: 左副将3 targetPos: 左副将3
+BattlePageV2.vue:1882 [onSkillDemoForAnimation] subjectEl: true subjectInner: true subjectCanvas: true targetEl: true
+BattlePageV2.vue:1890 [onSkillDemoForAnimation] subjectKey: left-3
+BattlePageV2.vue:1940 [onSkillDemoForAnimation] 执行无双开启
+BattlePageV2.vue:1948 [onSkillDemoForAnimation] 无双开启 完成
+BattlePageV2.vue:1953 [onSkillDemoForAnimation] 函数结束
+BattlePageV2.vue:2026 [handleRoundResult] 动画播放完成

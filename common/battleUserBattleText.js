@@ -1,8 +1,3 @@
-/**
- * 与 `nodejs/src/services/battleEngine.js` 中 `buildUserBattleText` 一致的玩家战况行生成。
- * 供前端与 `buildUserBattleTextLinePlan` 对齐「战斗过程」逐步展示。
- */
-
 export function stripMainSuffix(name) {
   return String(name || '').replace(/-主将$/, '')
 }
@@ -13,10 +8,6 @@ export function extractDisplayName(name) {
   return idx >= 0 ? s.slice(idx + 1) : s
 }
 
-/**
- * 从「战况文本用户」中去掉不在战局页系统栏展示的行（与 `buildUserBattleTextLines` 新语义一致）。
- * 用于：服务端旧存档、重连合并、以及复制调试包与界面一致。
- */
 export function filterUserBattleDisplayLines(lines) {
   if (!Array.isArray(lines)) return []
   return lines.filter((ln) => {
@@ -28,7 +19,19 @@ export function filterUserBattleDisplayLines(lines) {
   })
 }
 
-/** @param {object[]} steps */
+export function buildUserBattleTextLinesFromEvents(events) {
+  if (!Array.isArray(events)) return []
+  return events.map(e => e.简要文本 || e.横幅显示 || '').filter(Boolean)
+}
+
+export function buildUserBattleTextLinePlanFromEvents(events) {
+  if (!Array.isArray(events)) return []
+  return events.map(e => {
+    const text = e.简要文本 || e.横幅显示 || ''
+    return text ? [text] : []
+  })
+}
+
 export function buildUserBattleTextLines(steps) {
   const lines = []
   let i = 0
@@ -131,7 +134,6 @@ export function buildUserBattleTextLines(steps) {
         break
       }
       case 'summon-fail':
-        /** 用户战况不展示「整段行动失败」类文案，与战局页系统栏一致 */
         break
       case 'item': {
         const itemName = s.itemName || s.物品名 || '物品'
@@ -152,10 +154,8 @@ export function buildUserBattleTextLines(steps) {
         )
         break
       case 'skill-fail':
-        /** 用户战况不展示技能/行动整段失败（精力不足等），与战局页系统栏一致 */
         break
       case 'buff-block':
-        /** 与 skill-fail 同类：整段「无法出手」不向玩家战况栏输出（仍可从系统/战斗日志查） */
         break
       case 'buff-tick':
         if (s.buff === '毒') {
@@ -190,10 +190,6 @@ export function buildUserBattleTextLines(steps) {
   return lines
 }
 
-/**
- * plan[k] = 在「已处理到 steps[k]（含）」时新增的战况行（与 buildUserBattleTextLines 单遍语义一致）。
- * 与战斗动画同步：在播放完下标 k 对应步骤后追加 plan[k]。
- */
 export function buildUserBattleTextLinePlan(steps) {
   const safe = Array.isArray(steps) ? steps : []
   const plan = safe.map(() => [])

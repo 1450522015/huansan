@@ -4,28 +4,26 @@ import http from 'http'
 import rateLimit from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
 import { Server } from 'socket.io'
-import { env } from './config/env.js'
-import { openSqlite } from './db/sqlite.js'
-import { authRouter } from './routes/auth.js'
-import { configRouter } from './routes/config.js'
-import { attrsRouter } from './routes/attrs.js'
-import { adminRouter } from './routes/admin.js'
-import { hallRouter } from './routes/hall.js'
-import { battleRouter } from './routes/battle.js'
-import * as onlineMap from './services/onlineMap.js'
-import * as userRepo from './repositories/userRepo.js'
-import { 职业经历To简串 } from './repositories/userRepo.js'
-import * as battleRepo from './repositories/battleRepo.js'
-import * as battleEngine from './services/battleEngine.js'
-import * as battleApp from './services/battleApplicationService.js'
-import { getDefaultConfig, normalizeConfigDeep } from './services/defaultConfig.js'
-
-function safeConfig(raw) {
-  if (!raw || typeof raw !== 'object' || Object.keys(raw).length === 0) return getDefaultConfig()
-  return normalizeConfigDeep(raw)
-}
+import { env } from '#src/config/env.js'
+import { openSqlite } from '#src/db/sqlite.js'
+import { authRouter } from '#src/routes/auth.js'
+import { configRouter } from '#src/routes/config.js'
+import { attrsRouter } from '#src/routes/attrs.js'
+import { adminRouter } from '#src/routes/admin.js'
+import { hallRouter } from '#src/routes/hall.js'
+import { battleRouter } from '#src/routes/battle.js'
+import * as onlineMap from '#src/services/onlineMap.js'
+import * as loggedInUsers from '#src/services/loggedInUsers.js'
+import * as userRepo from '#src/repositories/userRepo.js'
+import * as battleRepo from '#src/repositories/battleRepo.js'
+import * as battleService from '#src/services/battleService.js'
 
 const app = express()
+const server = http.createServer(app)
+const io = new Server(server, {
+  cors: { origin: true, credentials: true },
+})
+
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '2mb' }))
 
@@ -41,6 +39,11 @@ app.get('/api/health', (_req, res) => {
   res.json({ 状态: 'ok' })
 })
 
+app.use((req, _res, next) => {
+  req.io = io
+  next()
+})
+
 app.use('/api', authRouter)
 app.use('/api/config', configRouter)
 app.use('/api/attrs', attrsRouter)
@@ -51,11 +54,6 @@ app.use('/api/battle', battleRouter)
 app.use((err, _req, res, _next) => {
   console.error(err)
   res.status(500).json({ 错误: '服务器错误' })
-})
-
-const server = http.createServer(app)
-const io = new Server(server, {
-  cors: { origin: true, credentials: true },
 })
 
 io.use((socket, next) => {
@@ -79,216 +77,41 @@ io.on('connection', (socket) => {
   const 用户名 = socket.data.用户名 || ''
 
   const oldInfo = onlineMap.getOnlineInfo(userId)
-  if (oldInfo && oldInfo.oldSocket) {
-    oldInfo.oldSocket.disconnect(true)
+  if (oldInfo) {
+    oldInfo.socket.disconnect(true)
   }
 
   onlineMap.addOnline(userId, socket.id, 用户名, socket)
-  socket.emit('欢迎', { 消息: 'V1 长连接已建立' })
-  io.emit('online-change', { 在线列表: onlineMap.getOnlineList() })
+  socket.emit('欢迎', { 消息: '长连接已建立' })
 
-  socket.on('ping', () => socket.emit('pong', { 时间: Date.now() }))
+  battleService.handleReconnect(socket, 用户名)
+  battleService.广播在线用户列表()
 
-  const pendingBattle = battleRepo.findUserPendingBattle(用户名)
-  if (pendingBattle) {
-    const 发起用户 = userRepo.findUserByUsername(pendingBattle.发起用户名)
-    let 发起转数 = 0, 发起等级 = 1, 发起职业串 = ''
-    if (发起用户?.配置?.主将) {
-      发起转数 = 发起用户.配置.主将.转数 ?? 0
-      发起等级 = 发起用户.配置.主将.等级 ?? 1
-      发起职业串 = 职业经历To简串(发起用户.配置.主将.职业经历)
-    }
-    setTimeout(() => {
-      socket.emit('pk-request', {
-        发起用户名: pendingBattle.发起用户名,
-        发起转数,
-        发起等级,
-        发起职业串,
-      })
-    }, 500)
-  }
-
-  socket.on('pk-check-pending', () => {
-    const pending = battleRepo.findUserPendingBattle(用户名)
-    if (!pending) return
-    const 发起用户 = userRepo.findUserByUsername(pending.发起用户名)
-    let 发起转数 = 0, 发起等级 = 1, 发起职业串 = ''
-    if (发起用户?.配置?.主将) {
-      发起转数 = 发起用户.配置.主将.转数 ?? 0
-      发起等级 = 发起用户.配置.主将.等级 ?? 1
-      发起职业串 = 职业经历To简串(发起用户.配置.主将.职业经历)
-    }
-    socket.emit('pk-request', {
-      发起用户名: pending.发起用户名,
-      发起转数,
-      发起等级,
-      发起职业串,
-    })
+  socket.on('ping', () => {
+    onlineMap.updatePingTime(userId)
+    socket.emit('pong', { 时间: Date.now() })
   })
 
-  socket.on('pk-challenge', (data) => {
-    const 目标用户名 = String(data?.目标用户名 ?? '').trim()
-    if (!目标用户名) {
-      socket.emit('pk-result', { 同意: false, 原因: '缺少目标用户名' })
-      return
-    }
-    if (目标用户名 === 用户名) {
-      socket.emit('pk-result', { 同意: false, 原因: '不能对自己发起PK' })
-      return
-    }
-    const 目标用户 = userRepo.findUserByUsername(目标用户名)
-    if (!目标用户) {
-      socket.emit('pk-result', { 同意: false, 原因: '用户不存在' })
-      return
-    }
-    const 发起用户 = userRepo.findUserById(userId)
-
-    if (battleRepo.findUserActiveBattle(用户名) || battleRepo.findUserActiveBattle(目标用户名)) {
-      socket.emit('pk-result', { 同意: false, 原因: '已有进行中的战局或 PK 邀请' })
-      return
-    }
-    let 发起转数 = 0, 发起等级 = 1, 发起职业串 = ''
-    if (发起用户?.配置?.主将) {
-      发起转数 = 发起用户.配置.主将.转数 ?? 0
-      发起等级 = 发起用户.配置.主将.等级 ?? 1
-      发起职业串 = 职业经历To简串(发起用户.配置.主将.职业经历)
-    }
-    let 目标转数 = 0, 目标等级 = 1, 目标职业串 = ''
-    if (目标用户?.配置?.主将) {
-      目标转数 = 目标用户.配置.主将.转数 ?? 0
-      目标等级 = 目标用户.配置.主将.等级 ?? 1
-      目标职业串 = 职业经历To简串(目标用户.配置.主将.职业经历)
-    }
-    const battle = battleRepo.createBattle({ 发起用户名: 用户名, 目标用户名 })
-    socket.data.pendingBattleId = battle.id
-    socket.emit('pk-sent', {
-      目标用户名,
-      目标转数,
-      目标等级,
-      目标职业串,
-      发起转数,
-      发起等级,
-      发起职业串,
-    })
-    const 目标info = onlineMap.getOnlineInfoByUsername(目标用户名)
-    if (目标info) {
-      io.to(目标info.socketId).emit('pk-request', {
-        发起用户名: 用户名,
-        发起转数,
-        发起等级,
-        发起职业串,
-      })
-    }
+  socket.on('online-user-pull', () => {
+    socket.emit('online-user-push', battleService.getOnlineUserList())
   })
 
-  socket.on('pk-cancel', (data) => {
-    const 目标用户名 = String(data?.目标用户名 ?? '').trim()
-    if (!目标用户名) return
-    const battle = battleRepo.findActiveBattle(用户名, 目标用户名)
-    if (battle && battle.状态 === '等待中') {
-      battleRepo.deleteBattle(battle.id)
-    }
-    socket.data.pendingBattleId = null
-    const 目标info = onlineMap.getOnlineInfoByUsername(目标用户名)
-    if (!目标info) return
-    io.to(目标info.socketId).emit('pk-cancel', {
-      发起用户名: 用户名,
-      目标用户名,
-    })
-  })
+  socket.on('pk-request', (数据) => battleService.handlePkRequest(socket, 数据?.目标用户名))
+  socket.on('pk-invite-pull', () => battleService.handlePkInvitePull(socket))
+  socket.on('pk-reject', (数据) => battleService.handlePkRejectByUsername(socket, 数据?.邀请者用户名))
+  socket.on('pk-agree', (数据) => battleService.handlePkAgreeByUsername(socket, 数据?.邀请者用户名))
+  socket.on('pk-plan', (数据) => battleService.handlePkPlan(socket, 数据))
 
-  socket.on('pk-response', (data) => {
-    const 发起用户名 = String(data?.发起用户名 ?? '').trim()
-    const 同意 = !!data?.同意
-    if (!发起用户名) return
-    const battle = battleRepo.findActiveBattle(发起用户名, 用户名)
-    if (!battle) {
-      socket.emit('pk-result', { 同意: false, 原因: '对方已离开' })
-      return
-    }
-    if (同意) {
-      const 发起方快照源 = userRepo.findUserByUsername(发起用户名)
-      const 目标方快照源 = userRepo.findUserByUsername(用户名)
-      battleRepo.updateBattleStatus(battle.id, '战局中', {
-        备注: null,
-        当前回合: 1,
-        回合数: 0,
-        发起方配置快照: JSON.stringify(safeConfig(发起方快照源?.配置)),
-        目标方配置快照: JSON.stringify(safeConfig(目标方快照源?.配置)),
-      })
-    } else {
-      battleRepo.deleteBattle(battle.id)
-    }
-    const 发起info = onlineMap.getOnlineInfoByUsername(发起用户名)
-    if (!发起info) return
-    io.to(发起info.socketId).emit('pk-result', {
-      目标用户名: 用户名,
-      同意,
-      原因: 同意 ? '对方接受了挑战' : '对方拒绝了挑战',
-    })
-  })
+  socket.on('pk-ai-start', (数据) => battleService.createAiBattle(socket, 用户名, 数据?.aiOpponentId))
 
-  socket.on('battle-round-start', () => {
-    const result = battleApp.startRound(用户名)
-    if (!result.ok) {
-      socket.emit('battle-error', { 错误: result.error || '开始回合失败' })
-      return
-    }
-    const { battle, payload } = result
-    const 发起info = onlineMap.getOnlineInfoByUsername(battle.发起用户名)
-    const 目标info = onlineMap.getOnlineInfoByUsername(battle.目标用户名)
-    if (发起info) io.to(发起info.socketId).emit('round-started', payload)
-    if (目标info) io.to(目标info.socketId).emit('round-started', payload)
-  })
-
-  socket.on('battle-actions-submit', async (data) => {
-    try {
-      const result = battleApp.submitActions(用户名, data)
-      if (!result.ok) {
-        socket.emit('battle-error', { 错误: result.error || '提交出招失败' })
-        return
-      }
-      if (result.payload?.双方就绪) {
-        const battle = result.battle
-        const 发起info = onlineMap.getOnlineInfoByUsername(battle.发起用户名)
-        const 目标info = onlineMap.getOnlineInfoByUsername(battle.目标用户名)
-        if (发起info) io.to(发起info.socketId).emit('round-result', result.roundResultData)
-        if (目标info) io.to(目标info.socketId).emit('round-result', result.roundResultData)
-      }
-      socket.emit('actions-submitted', result.payload)
-    } catch (e) {
-      console.error(e)
-      socket.emit('battle-error', { 错误: '提交出招失败' })
-    }
-  })
-
-  socket.on('battle-chat', (data) => {
-    const me = userRepo.findUserById(userId)
-    if (!me) return
-    const text = String(data?.text || '').slice(0, 1024)
-    if (!text) return
-    const battle = battleRepo.findUserActiveBattle(me.用户名)
-    if (!battle || battle.状态 !== '战局中') return
-    const opponentName = battle.发起用户名 === me.用户名 ? battle.目标用户名 : battle.发起用户名
-    const info = onlineMap.getOnlineInfoByUsername(opponentName)
-    const payload = { from: me.用户名, text, time: Date.now() }
-    if (info) io.to(info.socketId).emit('battle-chat', payload)
-    socket.emit('battle-chat', payload)
-  })
-
-  socket.on('battle-flee', () => {
-    const result = battleApp.fleeBattle(用户名)
-    if (!result.ok) {
-      socket.emit('battle-error', { 错误: result.error || '逃跑失败' })
-      return
-    }
-    const battle = result.battle
-    const otherName = battle.发起用户名 === 用户名 ? battle.目标用户名 : battle.发起用户名
-    const otherInfo = onlineMap.getOnlineInfoByUsername(otherName)
-    if (otherInfo) {
-      io.to(otherInfo.socketId).emit('battle-fled', { 逃跑方: 用户名, 原因: result.payload.备注 })
-    }
-    socket.emit('actions-submitted', { ok: true, 已逃跑: true, 备注: result.payload.备注 })
+  socket.on('login-exit', () => {
+    battleService.handleDisconnect(用户名)
+    onlineMap.removeOnline(userId)
+    loggedInUsers.removeLoggedInUser(userId)
+    // 移除该用户作为发起方的战局等候
+    battleService.removeWaitingByInitiator(用户名)
+    io.emit('online-user-push', battleService.getOnlineUserList())
+    socket.disconnect(true)
   })
 
   socket.on('disconnect', () => {
@@ -297,46 +120,59 @@ io.on('connection', (socket) => {
       return
     }
 
-    if (socket.data.pendingBattleId) {
-      const battle = battleRepo.findBattleById(socket.data.pendingBattleId)
-      if (battle && battle.状态 === '等待中') {
-        battleRepo.deleteBattle(battle.id)
-        const 目标info = onlineMap.getOnlineInfoByUsername(battle.目标用户名)
-        if (目标info) {
-          io.to(目标info.socketId).emit('pk-cancel', {
-            发起用户名: 用户名,
-            目标用户名: battle.目标用户名,
-          })
-        }
-      }
-      socket.data.pendingBattleId = null
-    }
-    const activeBattle = battleRepo.findUserActiveBattle(用户名)
-    if (activeBattle && activeBattle.状态 === '战局中') {
-      const otherName = activeBattle.发起用户名 === 用户名 ? activeBattle.目标用户名 : activeBattle.发起用户名
-      const otherOnline = onlineMap.hasOnlineUsername(otherName)
-      if (!otherOnline) {
-        battleEngine.clearRuntimeState(Number(activeBattle.id))
-        battleRepo.updateBattleStatus(activeBattle.id, '已结束', {
-          备注: '失去连接',
-          回合数: Number(activeBattle.当前回合 || 0),
-          结束时间: new Date().toISOString(),
-        })
-      }
-    }
+    battleService.handleDisconnect(用户名)
+
     onlineMap.removeOnline(userId)
-    io.emit('online-change', { 在线列表: onlineMap.getOnlineList() })
+    io.emit('online-user-push', battleService.getOnlineUserList())
   })
 })
 
 function main() {
   openSqlite()
   battleRepo.endAllActiveBattles('服务器重启，战局终止')
-  battleEngine.clearAllRuntimeState()
+  battleService.init(io)
+  startHeartbeatCheck(io)
   server.listen(env.port, () => {
-    console.log(`[huansan] HTTP+WS 监听 ${env.port}（战局 GET /api/battle/current、/api/battle/health）`)
+    console.log(`[huansan] HTTP+WS 监听 ${env.port}`)
   })
 }
+
+let 心跳检测定时器 = null
+
+function startHeartbeatCheck(serverIo) {
+  if (心跳检测定时器) clearInterval(心跳检测定时器)
+  心跳检测定时器 = setInterval(() => {
+    const now = Date.now()
+    const 需移除 = []
+    for (const [userId, info] of onlineMap.getEntries()) {
+      if (!info) continue
+      if (now - info.ping时间 > 10000) {
+        需移除.push({ userId, 用户名: info.用户名, socketId: info.socketId })
+      }
+    }
+    if (需移除.length === 0) return
+    for (const { userId, 用户名, socketId } of 需移除) {
+      const currentInfo = onlineMap.getOnlineInfo(userId)
+      if (!currentInfo || currentInfo.socketId !== socketId) continue
+      currentInfo.socket.disconnect(true)
+      battleService.handleDisconnect(用户名)
+      onlineMap.removeOnline(userId)
+    }
+    serverIo.emit('online-user-push', battleService.getOnlineUserList())
+  }, 5000)
+}
+
+process.on('SIGTERM', () => {
+  battleService.destroyAll()
+  if (心跳检测定时器) clearInterval(心跳检测定时器)
+  server.close()
+})
+
+process.on('SIGINT', () => {
+  battleService.destroyAll()
+  if (心跳检测定时器) clearInterval(心跳检测定时器)
+  server.close()
+})
 
 try {
   main()

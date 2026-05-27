@@ -1,14 +1,12 @@
 import { Router } from 'express'
-import bcrypt from 'bcryptjs'
-import * as userRepo from '../repositories/userRepo.js'
-import * as battleRepo from '../repositories/battleRepo.js'
-import * as aiOpponentRepo from '../repositories/aiOpponentRepo.js'
-import * as battleEngine from '../services/battleEngine.js'
-import { buildBattleCurrentSnapshot } from '../services/battleCurrentPayload.js'
-import { filterUserBattleDisplayLines } from '../../../common/battleUserBattleText.js'
-import { validatePassword } from '../utils/validate.js'
-import { invalidateUser } from '../services/configCache.js'
-import { getOnlineUserIds } from '../services/onlineMap.js'
+import * as userRepo from '#src/repositories/userRepo.js'
+import * as battleRepo from '#src/repositories/battleRepo.js'
+import * as aiOpponentRepo from '#src/repositories/aiOpponentRepo.js'
+import * as battleService from '#src/services/battleService.js'
+import { filterUserBattleDisplayLines } from '#common/battleUserBattleText.js'
+import { validatePassword } from '#src/utils/validate.js'
+import { invalidateUser } from '#src/services/configCache.js'
+import { getOnlineUserIds, getOnlineInfo } from '#src/services/onlineMap.js'
 
 export const adminRouter = Router()
 
@@ -34,7 +32,14 @@ adminRouter.get('/users', async (req, res) => {
       login: login !== 'all' ? login : 'all',
       onlineUserIds,
     })
-    return res.json({ list, total, page, pageSize })
+    const enriched = list.map(u => {
+      const onlineInfo = getOnlineInfo(String(u.id))
+      return {
+        ...u,
+        最新在线时间: onlineInfo ? new Date(onlineInfo.ping时间).toISOString() : null,
+      }
+    })
+    return res.json({ list: enriched, total, page, pageSize })
   } catch (e) {
     console.error(e)
     return res.status(500).json({ 错误: '查询用户失败' })
@@ -87,8 +92,7 @@ adminRouter.patch('/users/:id/password', async (req, res) => {
     return res.status(400).json({ 错误: '无效的用户 ID' })
   }
   try {
-    const 密码哈希 = await bcrypt.hash(v.密码, 10)
-    const ok = userRepo.updateUserPasswordHash(String(uid), 密码哈希)
+    const ok = userRepo.updateUserPasswordHash(String(uid), v.密码)
     if (!ok) return res.status(404).json({ 错误: '用户不存在' })
     invalidateUser(String(uid))
     return res.json({ 成功: true })
@@ -117,39 +121,16 @@ adminRouter.get('/battles', async (req, res) => {
 })
 
 adminRouter.get('/battles/:id/debug', async (req, res) => {
-  const bid = parseUserIdParam(req.params.id)
-  if (bid == null) {
+  const bid = req.params.id
+  if (!bid) {
     return res.status(400).json({ 错误: '无效的战局 ID' })
   }
   try {
     const battle = battleRepo.findBattleById(String(bid))
     if (!battle) return res.status(404).json({ 错误: '战局不存在' })
 
-    const 战况文本系统 = Array.isArray(battle.战况文本系统累计) ? battle.战况文本系统累计 : []
-    const roundData =
-      battleEngine.getLatestRoundDataForBattle(Number(battle.id)) ||
-      battleEngine.getRoundData(Number(battle.id), battleRepo.getBattleRoundRowKeyForLog(battle))
-
-    /** 与 mobile `GET /api/battle/current` 同构；优先发起方视角，失败则换目标方（人机局等） */
-    const 战局与回合快照 =
-      buildBattleCurrentSnapshot(battle, battle.发起用户名) ||
-      buildBattleCurrentSnapshot(battle, battle.目标用户名)
-
     const payload = {
-      生成时间: new Date().toISOString(),
-      说明:
-        '战局调试包：含 /api/battle/current 快照、最近一次回合结算事件；战况文本系统为自开战起按回合累计（与战局.战况文本系统累计同源）。',
-      战况文本系统,
-      战局与回合快照: 战局与回合快照 || { 战局: null },
-      最近回合结算事件: roundData
-        ? {
-            ...roundData,
-            战况文本系统,
-            战况文本用户: filterUserBattleDisplayLines(
-              Array.isArray(roundData.战况文本用户) ? roundData.战况文本用户 : [],
-            ),
-          }
-        : null,
+      战局数据: battle.战局 || null,
     }
     return res.json(payload)
   } catch (e) {
@@ -174,9 +155,6 @@ adminRouter.post('/ai-opponents', (req, res) => {
     if (!名称 || typeof 名称 !== 'string' || !名称.trim()) {
       return res.status(400).json({ 错误: '名称不能为空' })
     }
-    if (!类型 || !['木桩', '大师'].includes(类型)) {
-      return res.status(400).json({ 错误: '类型必须为木桩或大师' })
-    }
     if (!配置 || typeof 配置 !== 'object') {
       return res.status(400).json({ 错误: '配置格式错误' })
     }
@@ -200,5 +178,15 @@ adminRouter.delete('/ai-opponents/:id', (req, res) => {
   } catch (e) {
     console.error(e)
     return res.status(500).json({ 错误: '删除人机失败' })
+  }
+})
+
+adminRouter.get('/waiting-battles', (_req, res) => {
+  try {
+    const list = battleService.getWaitingBattleList()
+    return res.json({ list, total: list.length })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ 错误: '查询战局等候列表失败' })
   }
 })

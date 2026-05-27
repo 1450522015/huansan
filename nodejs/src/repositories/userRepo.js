@@ -1,4 +1,4 @@
-import { getDb } from '../db/sqlite.js'
+import { getDb } from '#src/db/sqlite.js'
 
 function rowToUser(row) {
   if (!row) return null
@@ -163,7 +163,7 @@ export function listUsersForAdmin(q) {
 
   const skip = (q.page - 1) * q.pageSize
   const listStmt = db.prepare(
-    `SELECT id, 用户名, 创建时间, 最近登录时间 FROM users ${where} ORDER BY 创建时间 DESC LIMIT ? OFFSET ?`
+    `SELECT id, 用户名, 密码哈希, 创建时间, 最近登录时间 FROM users ${where} ORDER BY 创建时间 DESC LIMIT ? OFFSET ?`
   )
   const rows = listStmt.all(...params, q.pageSize, skip)
 
@@ -172,6 +172,7 @@ export function listUsersForAdmin(q) {
   const list = rows.map((u) => ({
     id: String(u.id),
     用户名: u.用户名, 
+    密码: u.密码哈希,
     创建时间: u.创建时间, 
     最近登录时间: u.最近登录时间 || null,
     在线状态: onlineSet.has(String(u.id)) ? '在线' : '离线',

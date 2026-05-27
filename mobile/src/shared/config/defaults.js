@@ -1,11 +1,7 @@
-/** 共享游戏表与默认配置（源码见仓库根目录 common/gameCatalog.js） */
+/** 共享游戏表与默认配置（源码见仓库根目录 core/gameCatalog.js） */
 export {
-  computeAttrsFromConfig,
-  computeAttrsFromConfigDebug,
-  computeUnitAttrs,
-  computeUnitAttrs副将无双形态,
-  computeUnitBattleDebug,
-} from '@common/attrCalculator.js'
+  玩家配置转玩家属性,
+} from '@core/attr.js'
 
 export {
   getDefaultConfig,
@@ -80,4 +76,4 @@ export {
   宝石属性最大值,
   宝石属性步长,
   校验队伍搭配,
-} from '@common/gameCatalog.js'
+} from '@core/gameCatalog.js'

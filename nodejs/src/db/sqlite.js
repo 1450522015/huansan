@@ -1,8 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3'
-import { env } from '../config/env.js'
-import { ensureAiOpponentsTable } from '../repositories/aiOpponentRepo.js'
+import { env } from '#src/config/env.js'
 
 let dbInstance = null
 
@@ -20,122 +19,28 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_users_created ON users (创建时间 DESC);
 
     CREATE TABLE IF NOT EXISTS battles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      发起用户名 TEXT NOT NULL,
-      目标用户名 TEXT NOT NULL,
+      id TEXT PRIMARY KEY,
+      红方用户名 TEXT NOT NULL,
+      黑方用户名 TEXT NOT NULL,
       状态 TEXT NOT NULL DEFAULT '等待中' CHECK (状态 IN ('等待中', '战局中', '已结束')),
-      备注 TEXT,
       当前回合 INTEGER NOT NULL DEFAULT 0,
-      回合数 INTEGER NOT NULL DEFAULT 0,
-      发起时间 TEXT NOT NULL,
+      战胜方玩家名称 TEXT,
+      战局数据 TEXT,
+      创建时间 TEXT NOT NULL,
       结束时间 TEXT
     );
-    CREATE INDEX IF NOT EXISTS idx_battles_status ON battles (状态);
-    CREATE INDEX IF NOT EXISTS idx_battles_time ON battles (发起时间 DESC);
-  `)
-  migrateBattlesSchemaV2(db)
-  migrateBattlesSchemaV3(db)
-  migrateBattlesSchemaV4(db)
-  migrateBattlesSchemaV5(db)
-}
+    CREATE INDEX IF NOT EXISTS idx_battles_红方 ON battles(红方用户名);
+    CREATE INDEX IF NOT EXISTS idx_battles_黑方 ON battles(黑方用户名);
+    CREATE INDEX IF NOT EXISTS idx_battles_状态 ON battles(状态);
 
-function migrateBattlesSchemaV2(db) {
-  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='battles'`).get()
-  if (!row?.sql) return
-  const sql = String(row.sql)
-  const has备注 = sql.includes('备注')
-  const has回合数 = sql.includes('回合数')
-  const hasStatusCheck = sql.includes(`CHECK (状态 IN ('等待中', '战局中', '已结束'))`)
-  if (has备注 && has回合数 && hasStatusCheck) return
-
-  db.exec(`
-    BEGIN;
-    CREATE TABLE battles_new (
+    CREATE TABLE IF NOT EXISTS ai_opponents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      发起用户名 TEXT NOT NULL,
-      目标用户名 TEXT NOT NULL,
-      状态 TEXT NOT NULL DEFAULT '等待中' CHECK (状态 IN ('等待中', '战局中', '已结束')),
-      备注 TEXT,
-      当前回合 INTEGER NOT NULL DEFAULT 0,
-      回合数 INTEGER NOT NULL DEFAULT 0,
-      发起时间 TEXT NOT NULL,
-      结束时间 TEXT
+      名称 TEXT NOT NULL,
+      类型 TEXT NOT NULL,
+      配置 TEXT NOT NULL DEFAULT '{}',
+      创建时间 TEXT NOT NULL
     );
-    INSERT INTO battles_new (id, 发起用户名, 目标用户名, 状态, 备注, 当前回合, 回合数, 发起时间, 结束时间)
-    SELECT
-      id,
-      发起用户名,
-      目标用户名,
-      CASE
-        WHEN 状态 IN ('等待中', '战局中', '已结束') THEN 状态
-        ELSE '已结束'
-      END AS 新状态,
-      CASE
-        WHEN 状态 IN ('等待中', '战局中', '已结束') THEN NULL
-        ELSE 状态
-      END AS 新备注,
-      COALESCE(当前回合, 0) AS 当前回合,
-      COALESCE(当前回合, 0) AS 回合数,
-      发起时间,
-      结束时间
-    FROM battles;
-    DROP TABLE battles;
-    ALTER TABLE battles_new RENAME TO battles;
-    CREATE INDEX IF NOT EXISTS idx_battles_status ON battles (状态);
-    CREATE INDEX IF NOT EXISTS idx_battles_time ON battles (发起时间 DESC);
-    COMMIT;
   `)
-  console.log('[sqlite] migrated battles: 状态三值 + 备注 + 回合数')
-}
-
-/** 战局内冻结双方配置 JSON，避免战斗中改配影响本局 */
-function migrateBattlesSchemaV4(db) {
-  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='battles'`).get()
-  if (!row?.sql) return
-  const sql = String(row.sql)
-  if (sql.includes('发起方配置快照')) return
-  db.exec(`
-    ALTER TABLE battles ADD COLUMN 发起方配置快照 TEXT;
-    ALTER TABLE battles ADD COLUMN 目标方配置快照 TEXT;
-  `)
-  console.log('[sqlite] migrated battles: 双方配置快照')
-}
-
-function migrateBattlesSchemaV5(db) {
-  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='battle_rounds'`).get()
-  if (!row?.sql) return
-  const sql = String(row.sql)
-  if (sql.includes('战斗过程')) return
-  db.exec(`ALTER TABLE battle_rounds ADD COLUMN 战斗过程 TEXT NOT NULL DEFAULT '[]'`)
-  console.log('[sqlite] migrated battle_rounds: 战斗过程')
-}
-
-/** 战局调试/战况文本系统：按回合累计的 JSON 字符串数组 */
-function migrateBattlesSchemaV6(db) {
-  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='battles'`).get()
-  if (!row?.sql) return
-  const sql = String(row.sql)
-  if (sql.includes('战况文本系统累计')) return
-  db.exec(`ALTER TABLE battles ADD COLUMN 战况文本系统累计 TEXT NOT NULL DEFAULT '[]'`)
-  console.log('[sqlite] migrated battles: 战况文本系统累计')
-}
-
-/** 每回合结算后用户可见战况（与 round-result.战况文本用户 同源，供重连拉日志） */
-function migrateBattlesSchemaV7(db) {
-  const row = db.prepare(`PRAGMA table_info(battle_rounds)`).all()
-  if (!Array.isArray(row) || !row.length) return
-  if (row.some((r) => r.name === '战况文本用户')) return
-  db.exec(`ALTER TABLE battle_rounds ADD COLUMN 战况文本用户 TEXT NOT NULL DEFAULT '[]'`)
-  console.log('[sqlite] migrated battle_rounds: 战况文本用户')
-}
-
-/** 保存完整回合结果 JSON，供 admin 调试复制使用 */
-function migrateBattleRoundsV8(db) {
-  const row = db.prepare(`PRAGMA table_info(battle_rounds)`).all()
-  if (!Array.isArray(row) || !row.length) return
-  if (row.some((r) => r.name === '完整结果')) return
-  db.exec(`ALTER TABLE battle_rounds ADD COLUMN 完整结果 TEXT`)
-  console.log('[sqlite] migrated battle_rounds: 完整结果')
 }
 
 function migrateUsersTokenVersion(db) {
@@ -143,26 +48,6 @@ function migrateUsersTokenVersion(db) {
   const hasColumn = row.some(r => r.name === 'token_version')
   if (hasColumn) return
   db.exec(`ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0`)
-  console.log('[sqlite] migrated users: token_version')
-}
-
-function migrateBattlesSchemaV3(db) {
-  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='battle_rounds'`).get()
-  if (row) return
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS battle_rounds (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      battle_id INTEGER NOT NULL,
-      回合数 INTEGER NOT NULL DEFAULT 1,
-      发起方出招 TEXT NOT NULL DEFAULT '[]',
-      目标方出招 TEXT NOT NULL DEFAULT '[]',
-      战斗日志 TEXT NOT NULL DEFAULT '[]',
-      创建时间 TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_battle_rounds_battle ON battle_rounds(battle_id, 回合数);
-  `)
-  console.log('[sqlite] created battle_rounds table')
 }
 
 /**
@@ -179,16 +64,8 @@ export function openSqlite() {
   db.pragma('busy_timeout = 8000')
   db.pragma('foreign_keys = ON')
   initSchema(db)
-  migrateBattlesSchemaV3(db)
-  migrateBattlesSchemaV4(db)
-  migrateBattlesSchemaV5(db)
-  migrateBattlesSchemaV6(db)
-  migrateBattlesSchemaV7(db)
-  migrateBattleRoundsV8(db)
   migrateUsersTokenVersion(db)
-  ensureAiOpponentsTable(db)
   dbInstance = db
-  console.log(`[sqlite] ${filePath} (WAL)`)
   return dbInstance
 }
 

@@ -1,15 +1,14 @@
 import path from 'path'
-import { defineConfig, loadEnv } from 'vite'
+import {defineConfig, loadEnv} from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig(({ mode }) => {
   const envRoot = path.resolve(__dirname, '..')
   const env = loadEnv(mode, envRoot, '')
   const backendBaseUrl = `${env.NODEJS_PROTOCOL || 'http'}://${env.NODEJS_IP || '127.0.0.1'}:${env.NODEJS_PORT || 3000}`
+  const socketBaseUrl = `${env.NODEJS_PROTOCOL || 'http'}://${env.NODEJS_IP || '127.0.0.1'}:${env.NODEJS_SOCKET_PORT || env.NODEJS_PORT || 3000}`
   const mobilePort = Number(env.VUE3_MOBILE_PORT || 9001)
   const base = env.VUE3_MOBILE_BASE || '/'
-  const backendUrl = mode === 'development' ? '' : backendBaseUrl
-
   return {
     root: __dirname,
     base,
@@ -18,7 +17,9 @@ export default defineConfig(({ mode }) => {
       {
         name: 'inject-backend-url',
         transformIndexHtml(html) {
-          return html.replace('__BACKEND_URL_PLACEHOLDER__', backendUrl)
+          return html
+            .replace('__BACKEND_URL_PLACEHOLDER__', backendBaseUrl)
+            .replace('__SOCKET_URL_PLACEHOLDER__', socketBaseUrl)
         },
       },
     ],
@@ -26,6 +27,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, './src'),
         '@common': path.resolve(__dirname, '../common'),
+        '@core': path.resolve(__dirname, '../core'),
       },
     },
     server: {
@@ -37,7 +39,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         '/socket.io': {
-          target: backendBaseUrl,
+          target: socketBaseUrl,
           changeOrigin: true,
           ws: true,
         },

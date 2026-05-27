@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#src/*": "./src/*",
+    "#core/*": "./src/core/*",
+    "#common/*": "./src/common/*"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "check-users": "node scripts/check-users.js"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

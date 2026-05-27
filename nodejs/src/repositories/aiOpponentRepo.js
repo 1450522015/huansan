@@ -1,19 +1,4 @@
-import { getDb } from '../db/sqlite.js'
-
-export function ensureAiOpponentsTable(db) {
-  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='ai_opponents'`).get()
-  if (row) return
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS ai_opponents (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      名称 TEXT NOT NULL UNIQUE,
-      类型 TEXT NOT NULL CHECK (类型 IN ('木桩', '大师')),
-      配置 TEXT NOT NULL DEFAULT '{}',
-      创建时间 TEXT NOT NULL
-    );
-  `)
-  console.log('[sqlite] created ai_opponents table')
-}
+import { getDb } from '#src/db/sqlite.js'
 
 export function createAiOpponent({ 名称, 类型, 配置 }) {
   const now = new Date().toISOString()

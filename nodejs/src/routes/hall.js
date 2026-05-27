@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import * as userRepo from '../repositories/userRepo.js'
-import { authRequired } from '../middleware/auth.js'
-import { getOnlineUserIds } from '../services/onlineMap.js'
+import * as userRepo from '#src/repositories/userRepo.js'
+import { authRequired } from '#src/middleware/auth.js'
+import { getOnlineUserIds, getOnlineList, getUserStatusByUsername } from '#src/services/onlineMap.js'
 
 export const hallRouter = Router()
 hallRouter.use(authRequired)
@@ -21,7 +21,11 @@ hallRouter.get('/users', async (req, res) => {
       onlineUserIds,
       onlyOnline: true,
     })
-    return res.json({ list, total, page, pageSize })
+    const statusList = getOnlineList().map(u => ({
+      用户名: u.用户名,
+      状态: getUserStatusByUsername(u.用户名),
+    }))
+    return res.json({ list, total, page, pageSize, statusList })
   } catch (e) {
     console.error(e)
     return res.status(500).json({ 错误: '查询大厅用户失败' })

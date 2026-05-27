@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import * as userRepo from '../repositories/userRepo.js'
-import { authRequired } from '../middleware/auth.js'
-import { getDefaultConfig, normalizeConfigDeep } from '../services/defaultConfig.js'
-import { computeAttrsFromConfig, computeAttrsFromConfigDebug } from '../services/attrCalculator.js'
-import { getCached, setCached } from '../services/configCache.js'
+import * as userRepo from '#src/repositories/userRepo.js'
+import { authRequired } from '#src/middleware/auth.js'
+import { getDefaultConfig, normalizeConfigDeep } from '#src/services/defaultConfig.js'
+import { computeAttrsFromConfig, computeAttrsFromConfigDebug } from '#src/services/attrCalculator.js'
+import { getCached, setCached } from '#src/services/configCache.js'
 
 export const attrsRouter = Router()
 attrsRouter.use(authRequired)

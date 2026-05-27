@@ -29,8 +29,7 @@ def count_lines_in_file(file_path):
 
 def count_source_lines(root_dir):
     """统计项目源代码行数"""
-    total_lines = 0
-    file_count = 0
+    file_stats = []
     
     for root, dirs, files in os.walk(root_dir):
         # 过滤排除的目录
@@ -41,8 +40,25 @@ def count_source_lines(root_dir):
                 file_path = os.path.join(root, file)
                 if not is_excluded(file_path):
                     lines = count_lines_in_file(file_path)
-                    total_lines += lines
-                    file_count += 1
+                    if lines > 0:
+                        # 使用相对路径显示
+                        rel_path = os.path.relpath(file_path, root_dir)
+                        file_stats.append((rel_path, lines))
+    
+    # 按行数从大到小排序
+    file_stats.sort(key=lambda x: x[1], reverse=True)
+    
+    # 打印每个文件的行数
+    for file_path, lines in file_stats:
+        print(f"{lines:>6} 行 | {file_path}")
+    
+    total_lines = sum(lines for _, lines in file_stats)
+    file_count = len(file_stats)
+    
+    print(f"\n项目源代码统计结果:")
+    print(f"总文件数: {file_count}")
+    print(f"总行数: {total_lines}")
+    print(f"平均每个文件行数: {total_lines / file_count:.2f}" if file_count > 0 else "无文件")
     
     return total_lines, file_count
 

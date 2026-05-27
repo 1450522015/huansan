@@ -9,7 +9,7 @@ import HomePage from '@/pages/HomePage.vue'
 import ConfigMainPage from '@/pages/ConfigMainPage.vue'
 import ConfigDeputyPage from '@/pages/ConfigDeputyPage.vue'
 import HallPage from '@/pages/HallPage.vue'
-import BattlePage from '@/pages/BattlePage.vue'
+import BattlePageV2 from '@/pages/BattlePageV2.vue'
 import ChannelPage from '@/pages/ChannelPage.vue'
 import AiPage from '@/pages/AiPage.vue'
 import MorePage from '@/pages/MorePage.vue'
@@ -34,7 +34,6 @@ const router = createRouter({
       children: [
         { path: '', name: 'home', component: HomePage, meta: { requiresAuth: true } },
         { path: 'hall', name: 'hall', component: HallPage, meta: { requiresAuth: true } },
-        { path: 'battle', name: 'battle', component: BattlePage, meta: { requiresAuth: true } },
         { path: 'channel', name: 'channel', component: ChannelPage, meta: { requiresAuth: true } },
         { path: 'ai', name: 'ai', component: AiPage, meta: { requiresAuth: true } },
         { path: 'config/main', name: 'config-main', component: ConfigMainPage, meta: { requiresAuth: true } },
@@ -58,6 +57,12 @@ const router = createRouter({
       ],
     },
     {
+      path: '/battle',
+      name: 'battle',
+      component: BattlePageV2,
+      meta: { requiresAuth: true, fullscreen: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'catch-all',
       redirect: (to) => {
@@ -71,21 +76,6 @@ const router = createRouter({
     },
   ],
 })
-
-async function tryAutoLoginFromStorage() {
-  const { 用户名, 密码 } = getStoredCredentials()
-  if (!用户名 || !密码) return false
-  try {
-    const { data } = await http.post('/api/login', { 用户名, 密码 })
-    if (data?.token) {
-      localStorage.setItem('huansan_token', data.token)
-      return true
-    }
-  } catch {
-    /* ignore */
-  }
-  return false
-}
 
 router.beforeEach(async (to) => {
   if (versionGateState.locked) {
@@ -111,5 +101,20 @@ router.beforeEach(async (to) => {
   }
   return { name: 'login', replace: true, query: q }
 })
+
+async function tryAutoLoginFromStorage() {
+  const { 用户名, 密码 } = getStoredCredentials()
+  if (!用户名 || !密码) return false
+  try {
+    const { data } = await http.post('/api/login', { 用户名, 密码 })
+    if (data?.token) {
+      localStorage.setItem('huansan_token', data.token)
+      return true
+    }
+  } catch {
+    /* ignore */
+  }
+  return false
+}
 
 export default router

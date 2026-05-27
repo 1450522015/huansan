@@ -1,159 +1,146 @@
-import { ref, readonly } from 'vue'
-import { io } from 'socket.io-client'
-import { getToken } from '@/shared/auth/storage.js'
+import {readonly, ref} from 'vue'
+import {io} from 'socket.io-client'
 
 let socket = null
-
 let manualOffline = false
 
 const connectionStatus = ref('offline')
 const onlineList = ref([])
-const pendingPkTarget = ref('')
-const currentOpponent = ref(localStorage.getItem('huansan_当前对手') || '')
 
-export function setCurrentOpponent(用户名) {
-  currentOpponent.value = 用户名
-  if (用户名) {
-    localStorage.setItem('huansan_当前对手', 用户名)
-  } else {
-    localStorage.removeItem('huansan_当前对手')
-  }
+const connectHandlers = new Set()
+const pkInviteHandlers = new Set()
+const pkPushHandlers = new Set()
+const onlineUserHandlers = new Set()
+
+let 重连定时器 = null
+let 心跳定时器 = null
+
+function getToken() {
+  try { return localStorage.getItem('huansan_token') || '' } catch { return '' }
 }
 
-export function clearPendingPkTarget() {
-  pendingPkTarget.value = ''
-}
-
-const handlerMap = {
-  'pk-request': new Set(),
-  'pk-result': new Set(),
-  'pk-cancel': new Set(),
-  'pk-sent': new Set(),
-  'online-change': new Set(),
-  'round-started': new Set(),
-  'round-result': new Set(),
-  'actions-submitted': new Set(),
-  'battle-error': new Set(),
-  'battle-chat': new Set(),
-  'battle-fled': new Set(),
+function clearAllAuth() {
+  try {
+    localStorage.removeItem('huansan_token')
+    localStorage.removeItem('huansan_用户名')
+    localStorage.removeItem('huansan_密码')
+  } catch {}
 }
 
 export function useSocketClient() {
   return {
     connectionStatus: readonly(connectionStatus),
     onlineList: readonly(onlineList),
-    pendingPkTarget: readonly(pendingPkTarget),
-    currentOpponent,
-    setCurrentOpponent,
-    clearPendingPkTarget,
     connect,
     disconnect,
-    emitPkChallenge,
-    onPkRequest,
-    offPkRequest,
-    emitPkResponse,
-    onPkResult,
-    offPkResult,
-    emitPkCancel,
-    emitPkCheckPending,
-    onPkCancel,
-    offPkCancel,
-    onPkSent,
-    offPkSent,
-    onOnlineChange,
-    offOnlineChange,
     setManualOffline,
-    emitBattleRoundStart,
-    emitBattleActionsSubmit,
-    onRoundStarted,
-    offRoundStarted,
-    onRoundResult,
-    offRoundResult,
-    onActionsSubmitted,
-    offActionsSubmitted,
-    onBattleError,
-    offBattleError,
-    emitBattleChat,
-    onBattleChat,
-    offBattleChat,
-    emitBattleFlee,
-    onBattleFled,
-    offBattleFled,
+    emit,
+    onConnected,
+    offConnected,
+    onPkInvite,
+    offPkInvite,
+    onPkPush,
+    offPkPush,
+    onOnlineUserChange,
+    offOnlineUserChange,
+    发pk请求,
+    发pk拒绝,
+    发pk同意,
+    发出招,
+    发在线用户拉取,
+    发退出登录,
   }
 }
 
 export function connect() {
-  if (socket?.connected) return
-
   const token = getToken()
   if (!token) return
 
   manualOffline = false
-  connectionStatus.value = 'connecting'
 
   if (socket) {
-    socket.disconnect()
-    socket = null
-  }
-
-  const url = typeof window !== 'undefined' && window.__BACKEND_URL__ ? window.__BACKEND_URL__ : ''
-  socket = io(url, {
-    transports: ['websocket', 'polling'],
-    auth: { token },
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 2000,
-  })
-
-  socket.on('connect', () => {
-    if (!manualOffline) {
-      connectionStatus.value = 'online'
-      rebindHandlers()
+    if (socket.connected) {
+      return
     }
-  })
+    socket.auth = { token }
+    socket.connect()
+  } else {
+    connectionStatus.value = 'connecting'
+    const url = typeof window !== 'undefined' && window.__SOCKET_URL__ ? window.__SOCKET_URL__ : 'http://localhost:3001'
+    socket = io(url, {
+      transports: ['websocket', 'polling'],
+      auth: { token },
+      reconnection: false,
+    })
 
-  socket.on('disconnect', () => {
-    if (!manualOffline) {
+    socket.on('connect', () => {
+      if (!manualOffline) {
+        connectionStatus.value = 'online'
+        for (const handler of connectHandlers) {
+          try {
+            handler()
+          } catch (e) {
+            console.error('[socketClient] connect handler error:', e)
+          }
+        }
+      }
+    })
+
+    socket.on('disconnect', () => {
+      if (!manualOffline) {
+        connectionStatus.value = 'connecting'
+      }
+    })
+
+    socket.on('connect_error', (err) => {
+      if (manualOffline) return
+      const msg = err?.message || ''
+      if (msg.includes('未登录') || msg.includes('登录已失效') || msg.includes('已在其他设备登录') || msg.includes('用户不存在')) {
+        clearAllAuth()
+        setManualOffline()
+        if (window.location.hash !== '#/login') {
+          window.location.hash = '#/login'
+        }
+        return
+      }
       connectionStatus.value = 'connecting'
-    }
-    pendingPkTarget.value = ''
-  })
+    })
 
-  socket.on('connect_error', () => {
-    if (!manualOffline) {
-      connectionStatus.value = 'connecting'
-    }
-  })
+    socket.on('online-user-push', (data) => {
+      if (Array.isArray(data)) {
+        onlineList.value = data
+        for (const handler of onlineUserHandlers) {
+          try { handler(data) } catch (e) { console.error('[socketClient] online-user handler error:', e) }
+        }
+      }
+    })
 
-  socket.on('online-change', (data) => {
-    if (Array.isArray(data?.在线列表)) {
-      onlineList.value = data.在线列表
-    }
-  })
-}
+    socket.on('pk-invite-push', (data) => {
+      console.log('[socketClient] 收到 pk-invite-push:', data);
+      for (const handler of pkInviteHandlers) {
+        try { handler(data) } catch (e) { console.error('[socketClient] pk-invite handler error:', e) }
+      }
+    })
 
-function rebindHandlers() {
-  if (!socket) return
-  for (const [event, handlers] of Object.entries(handlerMap)) {
-    for (const handler of handlers) {
-      socket.on(event, handler)
-    }
+    socket.on('pk-push', (data) => {
+      for (const handler of pkPushHandlers) {
+        try { handler(data) } catch (e) { console.error('[socketClient] pk-push handler error:', e) }
+      }
+    })
+
+    启动重连检测()
+    启动心跳()
   }
 }
 
 export function disconnect() {
-  if (socket) {
-    socket.disconnect()
-    socket = null
-  }
-  manualOffline = false
-  connectionStatus.value = 'offline'
-  onlineList.value = []
-  pendingPkTarget.value = ''
+  setManualOffline()
 }
 
 export function setManualOffline() {
   manualOffline = true
+  停止重连检测()
+  停止心跳()
   if (socket) {
     socket.io.opts.reconnection = false
     socket.disconnect()
@@ -161,161 +148,110 @@ export function setManualOffline() {
   }
   connectionStatus.value = 'offline'
   onlineList.value = []
-  pendingPkTarget.value = ''
 }
 
-export function emitPkChallenge(目标用户名) {
-  if (!socket?.connected) return false
-  pendingPkTarget.value = 目标用户名
-  socket.emit('pk-challenge', { 目标用户名 })
-  return true
+export function onConnected(handler) {
+  connectHandlers.add(handler)
 }
 
-export function emitPkCancel(目标用户名) {
-  if (!socket?.connected) return
-  pendingPkTarget.value = ''
-  socket.emit('pk-cancel', { 目标用户名 })
+export function offConnected(handler) {
+  connectHandlers.delete(handler)
 }
 
-export function emitPkCheckPending() {
-  if (!socket?.connected) return
-  socket.emit('pk-check-pending')
+export function onPkInvite(handler) {
+  pkInviteHandlers.add(handler)
 }
 
-export function onPkCancel(handler) {
-  handlerMap['pk-cancel'].add(handler)
-  socket?.on('pk-cancel', handler)
+export function offPkInvite(handler) {
+  pkInviteHandlers.delete(handler)
 }
 
-export function offPkCancel(handler) {
-  handlerMap['pk-cancel'].delete(handler)
-  socket?.off('pk-cancel', handler)
+export function onPkPush(handler) {
+  pkPushHandlers.add(handler)
 }
 
-export function onPkRequest(handler) {
-  handlerMap['pk-request'].add(handler)
-  socket?.on('pk-request', handler)
+export function offPkPush(handler) {
+  pkPushHandlers.delete(handler)
 }
 
-export function offPkRequest(handler) {
-  handlerMap['pk-request'].delete(handler)
-  socket?.off('pk-request', handler)
+export function onOnlineUserChange(handler) {
+  onlineUserHandlers.add(handler)
 }
 
-export function emitPkResponse(发起用户名, 同意) {
-  if (!socket?.connected) return
-  socket.emit('pk-response', { 发起用户名, 同意 })
+export function offOnlineUserChange(handler) {
+  onlineUserHandlers.delete(handler)
 }
 
-export function onPkResult(handler) {
-  handlerMap['pk-result'].add(handler)
-  socket?.on('pk-result', handler)
+export function getSocket() {
+  return socket
 }
 
-export function offPkResult(handler) {
-  handlerMap['pk-result'].delete(handler)
-  socket?.off('pk-result', handler)
+export function emit(event, ...args) {
+  console.log('[socketClient.emit]', event, 'args=', args, 'socket=', !!socket);
+  socket?.emit(event, ...args)
 }
 
-export function onPkSent(handler) {
-  handlerMap['pk-sent'].add(handler)
-  socket?.on('pk-sent', handler)
+export function 发pk请求(目标用户名) {
+  socket?.emit('pk-request', { 目标用户名 })
 }
 
-export function offPkSent(handler) {
-  handlerMap['pk-sent'].delete(handler)
-  socket?.off('pk-sent', handler)
+export function 发pk拒绝(邀请者用户名) {
+  socket?.emit('pk-reject', { 邀请者用户名 })
 }
 
-export function onOnlineChange(handler) {
-  handlerMap['online-change'].add(handler)
-  socket?.on('online-change', handler)
+export function 发pk同意(邀请者用户名) {
+  socket?.emit('pk-agree', { 邀请者用户名 })
 }
 
-export function offOnlineChange(handler) {
-  handlerMap['online-change'].delete(handler)
-  socket?.off('online-change', handler)
+export function 发出招(出招数据) {
+  socket?.emit('pk-plan', 出招数据)
 }
 
-export function emitBattleRoundStart() {
-  if (!socket?.connected) return false
-  socket.emit('battle-round-start')
-  return true
+export function 发在线用户拉取() {
+  socket?.emit('online-user-pull')
 }
 
-export function emitBattleActionsSubmit(data) {
-  if (!socket?.connected) return false
-  socket.emit('battle-actions-submit', data)
-  return true
+export function 发退出登录() {
+  socket?.emit('login-exit')
 }
 
-export function onRoundStarted(handler) {
-  handlerMap['round-started'].add(handler)
-  socket?.on('round-started', handler)
+function 启动重连检测() {
+  停止重连检测()
+  重连定时器 = setInterval(() => {
+    if (socket?.connected) return
+    const token = getToken()
+    if (!token) {
+      if (window.location.hash !== '#/login') {
+        window.location.hash = '#/login'
+      }
+      停止重连检测()
+      return
+    }
+    if (!manualOffline && connectionStatus.value !== 'connecting') {
+      connect()
+    }
+  }, 1000)
 }
 
-export function offRoundStarted(handler) {
-  handlerMap['round-started'].delete(handler)
-  socket?.off('round-started', handler)
+function 停止重连检测() {
+  if (重连定时器) {
+    clearInterval(重连定时器)
+    重连定时器 = null
+  }
 }
 
-export function onRoundResult(handler) {
-  handlerMap['round-result'].add(handler)
-  socket?.on('round-result', handler)
+function 启动心跳() {
+  停止心跳()
+  心跳定时器 = setInterval(() => {
+    if (socket?.connected) {
+      socket.emit('ping')
+    }
+  }, 5000)
 }
 
-export function offRoundResult(handler) {
-  handlerMap['round-result'].delete(handler)
-  socket?.off('round-result', handler)
-}
-
-export function onActionsSubmitted(handler) {
-  handlerMap['actions-submitted'].add(handler)
-  socket?.on('actions-submitted', handler)
-}
-
-export function offActionsSubmitted(handler) {
-  handlerMap['actions-submitted'].delete(handler)
-  socket?.off('actions-submitted', handler)
-}
-
-export function onBattleError(handler) {
-  handlerMap['battle-error'].add(handler)
-  socket?.on('battle-error', handler)
-}
-
-export function offBattleError(handler) {
-  handlerMap['battle-error'].delete(handler)
-  socket?.off('battle-error', handler)
-}
-
-export function emitBattleChat(text) {
-  if (!socket?.connected) return
-  socket.emit('battle-chat', { text: String(text || '').slice(0, 1024) })
-}
-
-export function onBattleChat(handler) {
-  handlerMap['battle-chat'].add(handler)
-  socket?.on('battle-chat', handler)
-}
-
-export function offBattleChat(handler) {
-  handlerMap['battle-chat'].delete(handler)
-  socket?.off('battle-chat', handler)
-}
-
-export function emitBattleFlee() {
-  if (!socket?.connected) return false
-  socket.emit('battle-flee')
-  return true
-}
-
-export function onBattleFled(handler) {
-  handlerMap['battle-fled'].add(handler)
-  socket?.on('battle-fled', handler)
-}
-
-export function offBattleFled(handler) {
-  handlerMap['battle-fled'].delete(handler)
-  socket?.off('battle-fled', handler)
+function 停止心跳() {
+  if (心跳定时器) {
+    clearInterval(心跳定时器)
+    心跳定时器 = null
+  }
 }

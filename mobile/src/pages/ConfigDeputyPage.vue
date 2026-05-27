@@ -213,11 +213,11 @@
           @blur="clamp技能熟练(i)"
           @change="clamp技能熟练(i)"
         />
-        <span class="skill-effect">{{ 技能当前效果文案(s, { 战斗属性: 副将战斗属性, 天赋: 当前?.天赋, 神将技: 当前?.神将技, 等级: 当前?.等级 }) }}</span>
+        <span class="skill-effect">{{ 技能效果文案(s) }}</span>
       </div>
     </div>
 
-    <BattleAttrsPanel v-if="槽位合法" :data="副将战斗属性" :debug="副将战斗属性调试" />
+    <BattleAttrsPanel v-if="槽位合法" :data="副将战斗属性" />
 
     <div v-if="openImport" class="modal" @click.self="openImport = false">
       <div class="modal-body card">
@@ -259,15 +259,12 @@ import {
   技能等级档位列表,
   技能档位范围,
   clamp熟练度到档位,
-  技能当前效果文案,
   神将技技能列表,
   可用神将技列表,
   副将槽位总数,
   empty副将槽,
   副将上阵顺序同步,
-  computeUnitAttrs,
-  computeUnitAttrs副将无双形态,
-  computeUnitBattleDebug,
+  玩家配置转玩家属性,
   副将有效成长,
   副将无双成长增量,
   无双几率,
@@ -279,9 +276,6 @@ import { 配置, applyConfigImport } from '@/shared/config/usePlayerConfig.js'
 const route = useRoute()
 const router = useRouter()
 
-const battleDebugOn = computed(
-  () => import.meta.env.DEV || route.query.battleDebug === '1' || route.query.battleDebug === 'true',
-)
 const 槽位 = ref(0)
 const 提示 = ref('')
 const 提示类型 = ref('ok')
@@ -307,14 +301,16 @@ const 当前 = computed(() => {
 })
 
 const 副将战斗属性 = computed(() => {
-  if (!当前.value) return null
-  return computeUnitAttrs(当前.value, { 主将: false })
+  if (!槽位合法.value) return null
+  return 玩家配置转玩家属性(配置)?.副将列表[槽位.value] ?? null
 })
 
-const 副将战斗属性调试 = computed(() => {
-  if (!battleDebugOn.value || !当前.value) return null
-  return computeUnitBattleDebug(当前.value, { 主将: false })
-})
+function 技能效果文案(s) {
+  const 名称 = String(s?.名称 || '').trim()
+  const eff = 副将战斗属性.value?.技能效果?.[名称]
+  if (!eff) return '当前效果：--'
+  return `当前效果：${eff.当前效果}`
+}
 
 const 默契加成格子 = computed(() => {
   if (!当前.value) return []
@@ -359,13 +355,13 @@ function fmt成长三位(v) {
   return String(Math.round(Number(v) * 1000) / 1000)
 }
 
-/** 左侧 = 底部总属性（`computeUnitAttrs`）；右侧 = 同流水线套用无双成长增量 */
+/** 左侧 = 底部总属性；右侧 = 无双状态属性 */
 const 无双形态预览行 = computed(() => {
   const u = 当前.value
   if (!u?.人物?.trim()) return []
   if (副将无双成长增量(u.无双等级) <= 0) return []
   const base = 副将战斗属性.value
-  const uns = computeUnitAttrs副将无双形态(u)
+  const uns = base?.无双属性
   if (!base || !uns) return []
   const g0 = 副将有效成长(u.人物, { 星级: u.星级, 真: u.真, 转数: u.转数 })
   const g1 = Math.round((g0 + 副将无双成长增量(u.无双等级)) * 1000) / 1000
@@ -498,6 +494,11 @@ watch(副将性别前缀, (nw, old) => {
   for (let j = 0; j < 4; j++) {
     const axis = 分类转职业轴(u.职业经历[j])
     u.职业经历[j] = 职业轴与前缀成分类(nw, axis)
+  }
+  const 当前世 = u.职业经历?.[3]
+  if (当前世) {
+    u.技能 = 默认技能组(当前世)
+    if (u.头衔 === '神将') u.神将技 = 默认神将技(当前世)
   }
 })
 

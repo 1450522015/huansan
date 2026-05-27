@@ -12,7 +12,7 @@
       <div v-for="ai in list" :key="ai.id" class="ai-row card">
         <div class="ai-info">
           <span class="ai-name">{{ ai.名称 }}</span>
-          <span class="ai-type" :class="ai.类型 === '大师' ? 'master' : 'dummy'">{{ ai.类型 }}</span>
+          <span class="ai-type">{{ ai.类型 }}</span>
         </div>
         <button
           class="btn pk-btn"
@@ -59,18 +59,14 @@ async function onStartAi(ai) {
   starting.value = true
   bannerMsg.value = ''
   try {
-    const { data } = await http.post('/api/battle/ai-start', { 人机ID: ai.id })
-    if (data.ok) {
-      store.onBattleEnd()
-      store.phase = 'battling'
-      store.opponent = ai.名称 + '(电脑)'
-      router.push({ name: 'battle', query: { opponent: ai.名称 + '(电脑)' } })
-    } else {
-      bannerMsg.value = data.错误 || '创建战局失败'
+    const result = await store.startAiBattle(ai.id)
+    if (!result?.success) {
+      bannerMsg.value = result?.message || '创建战局失败'
       bannerTone.value = 'error'
     }
+    // battleStore 会自动处理跳转，不需要手动 router.push
   } catch (e) {
-    bannerMsg.value = e?.response?.data?.错误 || '创建战局失败'
+    bannerMsg.value = '创建战局失败'
     bannerTone.value = 'error'
   } finally {
     starting.value = false
@@ -113,14 +109,8 @@ onMounted(fetchList)
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 600;
-}
-.ai-type.dummy {
-  background: rgba(34,197,94,0.15);
-  color: #22c55e;
-}
-.ai-type.master {
-  background: rgba(168,85,247,0.15);
-  color: #a855f7;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
 }
 .pk-btn {
   padding: 6px 16px;

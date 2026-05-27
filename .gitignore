@@ -57,3 +57,9 @@ tmp/
 temp/
 
 *.apk
+
+.ai/
+.trae/
+.codebuddy/
+
+**/target/

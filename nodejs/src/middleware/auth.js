@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
-import { env } from '../config/env.js'
-import { findUserById } from '../repositories/userRepo.js'
+import { env } from '#src/config/env.js'
+import { findUserById } from '#src/repositories/userRepo.js'
 
 export function authRequired(req, res, next) {
   const h = req.headers.authorization || ''

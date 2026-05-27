@@ -8,17 +8,20 @@ export function saveSession({ token, 用户名, 密码 }) {
   if (token) localStorage.setItem(K.token, token)
   if (用户名) localStorage.setItem(K.用户名, 用户名)
   if (密码) localStorage.setItem(K.密码, 密码)
+  window.dispatchEvent(new CustomEvent('huansan:token-change'))
 }
 
 export function clearSession() {
   localStorage.removeItem(K.token)
   localStorage.removeItem(K.用户名)
   localStorage.removeItem(K.密码)
+  window.dispatchEvent(new CustomEvent('huansan:token-change'))
 }
 
 /** 仅清除 token，保留明文用户名与密码（用于退出后回显与自动登录） */
 export function clearTokenOnly() {
   localStorage.removeItem(K.token)
+  window.dispatchEvent(new CustomEvent('huansan:token-change'))
 }
 
 export function getToken() {
@@ -36,4 +39,5 @@ export function clearAllAuth() {
   localStorage.removeItem(K.token)
   localStorage.removeItem(K.用户名)
   localStorage.removeItem(K.密码)
+  window.dispatchEvent(new CustomEvent('huansan:token-change'))
 }

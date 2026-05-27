@@ -21,8 +21,9 @@
         <div class="form-row">
           <label>类型</label>
           <select v-model="newType" class="inp">
-            <option value="木桩">木桩</option>
-            <option value="大师">大师</option>
+            <option value="只会攻击">只会攻击</option>
+            <option value="只会防御">只会防御</option>
+            <option v-for="t in otherTypes" :key="t" :value="t">{{ t }}</option>
           </select>
         </div>
         <div class="form-row full">
@@ -62,16 +63,23 @@ const adding = ref(false)
 const addError = ref('')
 
 const newName = ref('')
-const newType = ref('木桩')
+const newType = ref('只会攻击')
 const newConfigText = ref('')
+
+const KNOWN_TYPES = ['只会攻击', '只会防御']
+
+const otherTypes = ref([])
 
 async function fetchList() {
   loading.value = true
   try {
     const { data } = await http.get('/api/admin/ai-opponents')
     list.value = data.list || []
+    const typeSet = new Set(list.value.map(item => item.类型))
+    otherTypes.value = [...typeSet].filter(t => !KNOWN_TYPES.includes(t))
   } catch {
     list.value = []
+    otherTypes.value = []
   } finally {
     loading.value = false
   }
